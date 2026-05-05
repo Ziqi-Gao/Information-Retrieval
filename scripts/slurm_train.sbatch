@@ -8,10 +8,8 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
-#SBATCH --partition=gengpu
-#SBATCH --account=p32737
 
-# Edit account, partition, time, memory, and GPU request above for your HPC.
+# Pass site-specific partition/account options through sbatch or SBATCH_ARGS.
 
 set -euo pipefail
 
@@ -19,28 +17,13 @@ echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: ${SLURMD_NODENAME}"
 echo "Start time: $(date)"
 
-# Edit these module lines for your HPC.
 module purge || true
-# module load cuda/12.1
-# module load python/3.10
 
-# Activate your environment.
-# Edit this path as needed.
-set +u
-source ~/.bashrc
-set -u
-CONDA_ENV=${CONDA_ENV:-/gpfs/projects/p32737/del6500_home/.conda/envs/ragen_ttt}
-conda activate "${CONDA_ENV}"
-PYTHON_BIN=${PYTHON_BIN:-python}
+source scripts/slurm_env.sh
 
-echo "Conda env: ${CONDA_ENV}"
+echo "Conda env: ${CONDA_ENV:-<not activated by script>}"
 echo "Python: $(which "${PYTHON_BIN}")"
 "${PYTHON_BIN}" --version
-
-export TOKENIZERS_PARALLELISM=false
-export HF_HOME=${HF_HOME:-$PWD/.hf_cache}
-export TRANSFORMERS_CACHE=${TRANSFORMERS_CACHE:-$HF_HOME/transformers}
-export HF_DATASETS_CACHE=${HF_DATASETS_CACHE:-$HF_HOME/datasets}
 
 VERSION=${VERSION:-standard}
 CONFIG=${CONFIG:-configs/preexp.yaml}

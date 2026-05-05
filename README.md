@@ -1,7 +1,189 @@
-# IR Experiments
+# Loop-Wise Matryoshka Retrieval
 
-This repository currently contains one experiment project:
+This repository contains a retrieval ablation suite for testing whether repeated query-side loops improve dense retrieval beyond a standard single-pass retriever.
 
-- [loop_matryoshka_retrieval](loop_matryoshka_retrieval): loop-wise Matryoshka-style dense retrieval ablations on RLHN-680K and SciFact.
+The current experimental pipeline is:
 
-The large generated artifacts under `loop_matryoshka_retrieval/outputs`, Hugging Face caches, and Slurm logs are local-only and ignored by git. See the project README for setup, training, evaluation, and ablation workflows.
+```text
+ModernBERT-base
+-> RLHN-680K hard-negative training subset
+-> SciFact retrieval evaluation with MTEB
+```
+
+The project intentionally does not use online tuning, exit gates, adaptive stopping, dimension slicing, pseudo labels, or in-batch negatives. All reported variants use normalized dot product similarity, equivalent to cosine similarity, and hard-negative cross entropy with `tau = 0.05`.
+
+## Core Idea
+
+The loop models keep the embedding dimension fixed and use query loop depth as the budget axis:
+
+```text
+h_1 = Pool_q(ModernBERT(query tokens))
+
+for t = 2..Tmax:
+    m_i = W_m h_i + e_i, for i = 1..t-1
+    input_t = [m_1, ..., m_{t-1}, query tokens]
+    h_t = Pool_q(ModernBERT(input_t))
+```
+
+Pooling excludes memory tokens. Documents are encoded once and do not loop. Every query state and document embedding is full-dimensional and L2-normalized.
+
+## Experiment Versions
+
+Experiment versions are registered in [src/experiments.py](src/experiments.py). Add new ablations there first so training, evaluation, and plotting stay consistent.
+
+| Version | Family | What It Tests |
+| --- | --- | --- |
+| `standard` | baseline | Single-pass no-loop retriever. |
+| `standard_more_steps` | baseline | Same as `standard`, trained for more optimizer steps as a stronger compute-budget baseline. |
+| `loop_final` | loop curve | Final-loop loss with full memory history `h_1...h_{t-1}`. |
+| `loop_final_last` | loop curve | Final-loop loss with only `h_{t-1}` prepended as memory for `h_t`. |
+| `loop_final_none` | loop curve | Final-loop loss with no recurrent memory-state feedback. |
+| `loop_matryoshka` | loop curve | Loopwise loss with full memory history `h_1...h_{t-1}`. |
+| `loop_matryoshka_last` | loop curve | Loopwise loss with only `h_{t-1}` prepended as memory for `h_t`. |
+| `loop_matryoshka_none` | loop curve | Loopwise loss with no recurrent memory-state feedback. |
+
+## Repository Layout
+
+```text
+configs/                  YAML configs for smoke and pre-experiment runs
+docs/                     Notes for adding future ablations
+scripts/                  Local and Slurm experiment entry points
+src/                      Training, model, evaluation, plotting, and registry code
+requirements.txt          Python dependencies
+```
+
+Generated artifacts are intentionally ignored by git:
+
+```text
+outputs/                  checkpoints, MTEB results, plots, summaries
+.hf_cache/                Hugging Face datasets/models cache
+slurm_logs/               cluster stdout/stderr logs
+```
+
+## Installation
+
+```bash
+conda create -n loopmat python=3.10 -y
+conda activate loopmat
+pip install -r requirements.txt
+```
+
+For Slurm runs, keep site-specific scheduler and environment choices outside the repository:
+
+```bash
+export CONDA_ENV=loopmat
+export SBATCH_ARGS="--partition=<partition> --account=<account>"
+bash scripts/slurm_run_preexp.sh
+```
+
+If `CONDA_ENV` is unset, batch scripts use `PYTHON_BIN` or the default `python` already available in the job shell.
+Generated caches default to relative ignored directories such as `.hf_cache/` and `.mplconfig/`.
+
+## Quick Smoke Test
+
+From this directory:
+
+```bash
+bash scripts/run_smoke.sh
+```
+
+This trains the three main variants on the smoke config and evaluates SciFact. The Python orchestrator exposes the same workflow:
+
+```bash
+python -m src.run_all --config configs/smoke.yaml --stage all
+```
+
+## Main Pre-Experiment
+
+Local:
+
+```bash
+bash scripts/run_preexp.sh
+```
+
+Slurm:
+
+```bash
+bash scripts/slurm_run_preexp.sh
+```
+
+The pre-experiment config uses `train_sample_size = 50000`, `Tmax = 10`, and `num_negatives = 7`.
+
+## Ablation Entrypoints
+
+Longer standard baseline:
+
+```bash
+bash scripts/run_standard_more_steps.sh
+```
+
+Memory-history range ablations:
+
+```bash
+bash scripts/run_no_history_ablation.sh
+```
+
+Slurm memory-history range workflow:
+
+```bash
+bash scripts/slurm_run_no_history_ablation.sh
+```
+
+The longer standard baseline uses:
+
+```text
+r = (Tmax + K + 1) / (K + 2)
+```
+
+With `Tmax=10` and `K=7`, `r=2.0`, so `standard_more_steps` trains for two epochs over the same 50K subset. This is a stronger longer-training baseline, not an exact FLOPs match.
+
+## Evaluation And Plots
+
+Evaluation is parameter-free inference on SciFact through MTEB. It writes raw MTEB JSON, parsed metrics, and summary rows. The primary metrics are:
+
+- `nDCG@10`
+- `Recall@10`
+- `Recall@100`
+- `MRR@10`
+- `MAP@10`
+
+To replot from a combined summary:
+
+```bash
+python -m src.plot_results \
+  --summary_csv outputs/plots/results_summary_all.csv \
+  --output_dir outputs/plots
+```
+
+Plotting is implemented with the Python standard library plus Matplotlib; it does not depend on pandas.
+
+## Output Convention
+
+Organized runs use one directory per method:
+
+```text
+outputs/<method>/
+  model/                 final checkpoint
+  eval/                  raw and parsed MTEB outputs
+  train_log.jsonl
+  results_summary.csv
+
+outputs/plots/
+  results_summary_all.csv
+  loop_depth_vs_*.png
+  best_loop_summary.json
+```
+
+`outputs/` is ignored by git because checkpoints are large. Keep reproducible code/configs in the repository and archive generated artifacts separately.
+
+## Adding New Ablations
+
+See [docs/ADDING_ABLATIONS.md](docs/ADDING_ABLATIONS.md).
+
+The short version:
+
+1. Add a `VersionSpec` in [src/experiments.py](src/experiments.py).
+2. Reuse the existing `standard` or `loop` family when possible.
+3. Add a small script under `scripts/` only for orchestration.
+4. Finalize generated outputs with `python -m src.finalize_ablation`.
+5. Replot with `python -m src.plot_results`.

@@ -7,20 +7,13 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
 #SBATCH --time=00:10:00
-#SBATCH --partition=short
-#SBATCH --account=p32737
 
-# Edit account, partition, time, and memory above for your HPC.
+# Pass site-specific partition/account options through sbatch or SBATCH_ARGS.
 
 set -euo pipefail
 
 module purge || true
-set +u
-source ~/.bashrc
-set -u
-CONDA_ENV=${CONDA_ENV:-/gpfs/projects/p32737/del6500_home/.conda/envs/ragen_ttt}
-conda activate "${CONDA_ENV}"
-PYTHON_BIN=${PYTHON_BIN:-python}
+source scripts/slurm_env.sh
 
 SUMMARY_CSV=${SUMMARY_CSV:-outputs/preexp_eval/results_summary.csv}
 PLOT_DIR=${PLOT_DIR:-outputs/preexp_eval/plots}

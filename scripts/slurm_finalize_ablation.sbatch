@@ -8,8 +8,8 @@
 #SBATCH --mem=8G
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:15:00
-#SBATCH --partition=gengpu
-#SBATCH --account=p32737
+
+# Pass site-specific partition/account options through sbatch or SBATCH_ARGS.
 
 set -euo pipefail
 
@@ -19,14 +19,9 @@ echo "Start time: $(date)"
 
 module purge || true
 
-set +u
-source ~/.bashrc
-set -u
-CONDA_ENV=${CONDA_ENV:-/gpfs/projects/p32737/del6500_home/.conda/envs/ragen_ttt}
-conda activate "${CONDA_ENV}"
-PYTHON_BIN=${PYTHON_BIN:-python}
+source scripts/slurm_env.sh
 
-METHODS=${METHODS:-"loop_final_no_history loop_matryoshka_no_history"}
+METHODS=${METHODS:-"loop_final_last loop_final_none loop_matryoshka_last loop_matryoshka_none"}
 PLOTS_DIR=${PLOTS_DIR:-outputs/plots}
 
 mkdir -p "${PLOTS_DIR}" slurm_logs
@@ -38,7 +33,7 @@ for METHOD in ${METHODS}; do
     --plots_dir "${PLOTS_DIR}"
 done
 
-MPLCONFIGDIR=${MPLCONFIGDIR:-/tmp/matplotlib-cache-${SLURM_JOB_ID}}
+MPLCONFIGDIR=${MPLCONFIGDIR:-.mplconfig/${SLURM_JOB_ID:-slurm}}
 export MPLCONFIGDIR
 mkdir -p "${MPLCONFIGDIR}"
 

@@ -28,10 +28,12 @@ For a one-off ablation script, follow `scripts/run_standard_more_steps.sh`:
 Do not add online tuning, exit gates, dimension slicing, pseudo labels, or in-batch loss unless the ablation is explicitly
 about one of those features. Keep each ablation isolated under its own `outputs/<method>/` directory.
 
-The no-history ablations are registered as:
+The memory-history range ablations add last-state-only and no-feedback variants:
 
-- `loop_final_no_history`
-- `loop_matryoshka_no_history`
+- `loop_final_last`
+- `loop_final_none`
+- `loop_matryoshka_last`
+- `loop_matryoshka_none`
 
 Run them with:
 
@@ -45,5 +47,8 @@ On SLURM:
 bash scripts/slurm_run_no_history_ablation.sh
 ```
 
-They keep the loop training objectives unchanged but set `use_memory_history=False`, so each query loop repeats the query
-encoder without prepending previous loop states as memory tokens.
+They keep the loop training objectives unchanged and vary only `memory_history_mode`:
+
+- `full`: `h_t` receives the full prefix `h_1...h_{t-1}`.
+- `last`: `h_t` receives only the immediately preceding state `h_{t-1}`.
+- `none`: `h_t` receives no recurrent memory-state feedback.

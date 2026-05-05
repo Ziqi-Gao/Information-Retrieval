@@ -20,6 +20,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         loop_impl: str = "memory_token",
         detach_memory: bool = False,
         use_memory_history: bool = True,
+        memory_history_mode: Optional[str] = None,
         use_projection: bool = True,
         projection_dim: Optional[int] = None,
         dropout: float = 0.1,
@@ -37,7 +38,15 @@ class LoopMatryoshkaRetriever(nn.Module):
         if self.loop_impl != "memory_token":
             raise ValueError(f"Only loop_impl='memory_token' is supported, got {loop_impl!r}.")
         self.detach_memory = bool(detach_memory)
-        self.use_memory_history = bool(use_memory_history)
+        if memory_history_mode is None:
+            memory_history_mode = "full" if use_memory_history else "none"
+        if memory_history_mode not in {"full", "last", "none"}:
+            raise ValueError(
+                "memory_history_mode must be one of {'full', 'last', 'none'}, "
+                f"got {memory_history_mode!r}."
+            )
+        self.memory_history_mode = str(memory_history_mode)
+        self.use_memory_history = self.memory_history_mode != "none"
         self.use_projection = bool(use_projection)
         self.requested_projection_dim = projection_dim
         self.dropout = float(dropout)
@@ -127,11 +136,17 @@ class LoopMatryoshkaRetriever(nn.Module):
         query_token_length = input_ids.size(1)
         last_input_length = query_token_length
         last_memory_tokens = 0
+        last_memory_state_indices: List[int] = []
 
         for t in range(2, loop_limit + 1):
-            if self.use_memory_history:
+            if self.memory_history_mode != "none":
                 memory_tokens = []
-                for idx, state in enumerate(states, start=1):
+                if self.memory_history_mode == "full":
+                    indexed_states = list(enumerate(states, start=1))
+                else:
+                    indexed_states = [(len(states), states[-1])]
+
+                for idx, state in indexed_states:
                     h_mem = state.detach() if self.detach_memory else state
                     state_ids = torch.full((batch_size,), idx, dtype=torch.long, device=device)
                     memory_tokens.append(self.memory_projection(h_mem) + self.memory_state_embeddings(state_ids))
@@ -148,11 +163,13 @@ class LoopMatryoshkaRetriever(nn.Module):
                 outputs = self.encoder(inputs_embeds=inputs_embeds, attention_mask=extended_attention_mask)
                 query_hidden = outputs.last_hidden_state[:, memory_tokens_tensor.size(1) :, :]
                 last_memory_tokens = memory_tokens_tensor.size(1)
+                last_memory_state_indices = [idx for idx, _ in indexed_states]
                 last_input_length = inputs_embeds.size(1)
             else:
                 outputs = self.encoder(inputs_embeds=query_token_embeds, attention_mask=attention_mask)
                 query_hidden = outputs.last_hidden_state
                 last_memory_tokens = 0
+                last_memory_state_indices = []
                 last_input_length = query_token_length
             pooled = self.mean_pool(query_hidden, attention_mask)
             ht = F.normalize(self.projection(pooled), p=2, dim=-1)
@@ -161,8 +178,10 @@ class LoopMatryoshkaRetriever(nn.Module):
         self.last_query_loop_debug = {
             "loop_impl": self.loop_impl,
             "use_memory_history": self.use_memory_history,
+            "memory_history_mode": self.memory_history_mode,
             "query_token_length": int(query_token_length),
             "last_memory_tokens": int(last_memory_tokens),
+            "last_memory_state_indices": last_memory_state_indices,
             "last_input_length": int(last_input_length),
             "memory_tokens_included": bool(last_memory_tokens > 0),
             "pooling_excludes_memory_tokens": True,
@@ -270,6 +289,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             "loop_impl": self.loop_impl,
             "detach_memory": self.detach_memory,
             "use_memory_history": self.use_memory_history,
+            "memory_history_mode": self.memory_history_mode,
             "use_projection": self.use_projection,
             "projection_dim": self.embedding_dim,
             "dropout": self.dropout,

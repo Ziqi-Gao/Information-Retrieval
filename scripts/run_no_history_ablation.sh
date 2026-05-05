@@ -5,7 +5,7 @@ PYTHON_BIN=${PYTHON_BIN:-python}
 CONFIG=${CONFIG:-configs/preexp.yaml}
 PLOTS_DIR=${PLOTS_DIR:-outputs/plots}
 TASK_NAME=${TASK_NAME:-SciFact}
-METHODS=(loop_final_no_history loop_matryoshka_no_history)
+METHODS=(loop_final_last loop_final_none loop_matryoshka_last loop_matryoshka_none)
 
 for METHOD in "${METHODS[@]}"; do
   RUN_DIR="outputs/${METHOD}"
@@ -52,7 +52,7 @@ done
   --summary_csv "${PLOTS_DIR}/results_summary_all.csv" \
   --output_dir "${PLOTS_DIR}"
 
-echo "Finished no-history ablations."
+echo "Finished memory-history range ablations."
 echo "Run directories:"
 for METHOD in "${METHODS[@]}"; do
   echo "  outputs/${METHOD}"

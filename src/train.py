@@ -213,8 +213,10 @@ def run_sanity_checks(
         "  memory_tokens: "
         f"included={debug.get('memory_tokens_included', False)} "
         f"use_memory_history={debug.get('use_memory_history', True)} "
+        f"memory_history_mode={debug.get('memory_history_mode', 'full')} "
         f"query_len={debug.get('query_token_length')} "
         f"last_memory_tokens={debug.get('last_memory_tokens')} "
+        f"last_memory_state_indices={debug.get('last_memory_state_indices', [])} "
         f"last_input_len={debug.get('last_input_length')}"
     )
     print(f"  query_pooling_excludes_memory_tokens={debug.get('pooling_excludes_memory_tokens', True)}")
@@ -298,6 +300,7 @@ def main() -> None:
         loop_impl=args.loop_impl,
         detach_memory=args.detach_memory,
         use_memory_history=get_version_spec(args.version).use_memory_history,
+        memory_history_mode=get_version_spec(args.version).memory_history_mode,
         use_projection=args.use_projection,
         projection_dim=args.projection_dim,
         dropout=args.dropout,
