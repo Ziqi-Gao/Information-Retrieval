@@ -1,0 +1,15 @@
+.codex
+loop_matryoshka_retrieval/.codex
+loop_matryoshka_retrieval/.hf_cache/
+loop_matryoshka_retrieval/.mplconfig/
+loop_matryoshka_retrieval/outputs/
+loop_matryoshka_retrieval/slurm_logs/*
+!loop_matryoshka_retrieval/slurm_logs/.gitkeep
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.tmp
+.DS_Store
