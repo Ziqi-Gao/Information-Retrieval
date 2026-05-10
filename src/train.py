@@ -41,7 +41,6 @@ DEFAULTS: Dict[str, Any] = {
     "batch_size": 16,
     "gradient_accumulation_steps": 2,
     "learning_rate_encoder": 2e-5,
-    "learning_rate_adapter": 1e-4,
     "weight_decay": 0.01,
     "warmup_ratio": 0.05,
     "tau": 0.05,
@@ -53,10 +52,7 @@ DEFAULTS: Dict[str, Any] = {
     "max_steps": None,
     "dataloader_num_workers": 4,
     "use_inbatch": False,
-    "use_projection": True,
-    "projection_dim": None,
-    "dropout": 0.1,
-    "loop_alpha_init": 0.1,
+    "loop_memory_mode": "mean_pool",
 }
 
 
@@ -72,28 +68,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max_query_length", type=int, default=None)
     parser.add_argument("--max_doc_length", type=int, default=None)
     parser.add_argument("--loop_impl", default=None)
-    add_bool_arg(parser, "detach_memory", "Detach previous query states before memory-token projection.")
+    add_bool_arg(parser, "detach_memory", "Detach previous query hidden states before passing them to the next loop.")
     parser.add_argument("--train_sample_size", type=int, default=None)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=None)
     parser.add_argument("--learning_rate_encoder", type=float, default=None)
-    parser.add_argument("--learning_rate_adapter", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--warmup_ratio", type=float, default=None)
     parser.add_argument("--tau", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
     add_bool_arg(parser, "use_inbatch", "Compatibility flag; training objective is hard-negative only.")
-    add_bool_arg(parser, "use_projection", "Use projection head.")
-    parser.add_argument("--projection_dim", type=int, default=None)
-    parser.add_argument("--dropout", type=float, default=None)
-    parser.add_argument("--loop_alpha_init", type=float, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--log_steps", type=int, default=None)
     parser.add_argument("--save_steps", type=int, default=None)
     parser.add_argument("--max_steps", type=int, default=None)
     parser.add_argument("--dataloader_num_workers", type=int, default=None)
+    parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "token_concat"], default=None)
     return parser
 
 
@@ -111,15 +103,23 @@ def parse_args() -> argparse.Namespace:
 
 
 def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) -> torch.optim.Optimizer:
-    encoder_params = list(model.encoder.parameters()) + list(model.projection.parameters())
-    adapter_params = list(model.memory_projection.parameters()) + list(model.memory_state_embeddings.parameters())
     return torch.optim.AdamW(
         [
-            {"params": encoder_params, "lr": args.learning_rate_encoder, "name": "encoder_projection"},
-            {"params": adapter_params, "lr": args.learning_rate_adapter, "name": "memory_tokens"},
+            {"params": model.encoder.parameters(), "lr": args.learning_rate_encoder, "name": "encoder"},
         ],
         weight_decay=args.weight_decay,
     )
+
+
+def assert_encoder_only_trainable(model: LoopMatryoshkaRetriever) -> None:
+    unexpected = [
+        name
+        for name, param in model.named_parameters()
+        if param.requires_grad and not name.startswith("encoder.")
+    ]
+    if unexpected:
+        preview = ", ".join(unexpected[:8])
+        raise AssertionError(f"Only encoder parameters may be trainable; unexpected trainable params: {preview}")
 
 
 def select_loss(
@@ -212,11 +212,9 @@ def run_sanity_checks(
     print(
         "  memory_tokens: "
         f"included={debug.get('memory_tokens_included', False)} "
-        f"use_memory_history={debug.get('use_memory_history', True)} "
-        f"memory_history_mode={debug.get('memory_history_mode', 'full')} "
+        f"loop_memory_mode={debug.get('loop_memory_mode', 'mean_pool')} "
         f"query_len={debug.get('query_token_length')} "
         f"last_memory_tokens={debug.get('last_memory_tokens')} "
-        f"last_memory_state_indices={debug.get('last_memory_state_indices', [])} "
         f"last_input_len={debug.get('last_input_length')}"
     )
     print(f"  query_pooling_excludes_memory_tokens={debug.get('pooling_excludes_memory_tokens', True)}")
@@ -239,7 +237,6 @@ def log_row(
         "loss_hard": tensor_to_float(loss_dict.get("loss_hard", loss_dict.get("loss_hard_avg"))),
         "loss_inbatch": tensor_to_float(loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))),
         "learning_rate_encoder": current_lr(optimizer, 0),
-        "learning_rate_adapter": current_lr(optimizer, 1),
     }
     if torch.cuda.is_available():
         row["gpu_memory_allocated_gb"] = torch.cuda.memory_allocated() / 1e9
@@ -299,13 +296,9 @@ def main() -> None:
         max_doc_length=args.max_doc_length,
         loop_impl=args.loop_impl,
         detach_memory=args.detach_memory,
-        use_memory_history=get_version_spec(args.version).use_memory_history,
-        memory_history_mode=get_version_spec(args.version).memory_history_mode,
-        use_projection=args.use_projection,
-        projection_dim=args.projection_dim,
-        dropout=args.dropout,
-        loop_alpha_init=args.loop_alpha_init,
+        loop_memory_mode=args.loop_memory_mode,
     ).to(device)
+    assert_encoder_only_trainable(model)
 
     optimizer = build_optimizer(model, args)
     updates_per_epoch = math.ceil(len(dataloader) / args.gradient_accumulation_steps)
@@ -323,7 +316,8 @@ def main() -> None:
     print(
         "Experiment config: "
         f"loop_impl={args.loop_impl}, use_inbatch={args.use_inbatch}, "
-        f"tmax={args.tmax}, detach_memory={args.detach_memory}"
+        f"tmax={args.tmax}, detach_memory={args.detach_memory}, "
+        f"loop_memory_mode={args.loop_memory_mode}"
     )
     model.train()
     optimizer.zero_grad(set_to_none=True)

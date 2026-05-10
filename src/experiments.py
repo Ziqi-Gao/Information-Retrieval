@@ -11,8 +11,6 @@ class VersionSpec:
     eval_all_loops: bool
     plot_kind: str
     color: str
-    use_memory_history: bool = True
-    memory_history_mode: str = "full"
 
     @property
     def is_standard_family(self) -> bool:
@@ -40,81 +38,24 @@ VERSION_SPECS: Dict[str, VersionSpec] = {
         eval_all_loops=False,
         plot_kind="baseline",
         color="black",
-        use_memory_history=False,
-        memory_history_mode="none",
-    ),
-    "standard_more_steps": VersionSpec(
-        name="standard_more_steps",
-        family="standard",
-        loss_type="standard",
-        description="No-loop hard-negative retriever trained for more optimizer steps.",
-        eval_all_loops=False,
-        plot_kind="baseline",
-        color="#2ca02c",
-        use_memory_history=False,
-        memory_history_mode="none",
     ),
     "loop_final": VersionSpec(
         name="loop_final",
         family="loop",
         loss_type="final_loop",
-        description="Memory-token loop retriever supervised only at the final loop, using full memory history.",
+        description="Parameter-free memory loop retriever supervised only at the final loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#1f77b4",
-        memory_history_mode="full",
-    ),
-    "loop_final_last": VersionSpec(
-        name="loop_final_last",
-        family="loop",
-        loss_type="final_loop",
-        description="Loop retriever supervised only at the final loop, using only the previous loop state as memory.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#9467bd",
-        memory_history_mode="last",
-    ),
-    "loop_final_none": VersionSpec(
-        name="loop_final_none",
-        family="loop",
-        loss_type="final_loop",
-        description="Loop retriever supervised only at the final loop, without recurrent memory-state feedback.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#8c564b",
-        use_memory_history=False,
-        memory_history_mode="none",
     ),
     "loop_matryoshka": VersionSpec(
         name="loop_matryoshka",
         family="loop",
         loss_type="loopwise",
-        description="Memory-token loop retriever supervised at every loop, using full memory history.",
+        description="Parameter-free memory loop retriever supervised at every loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#d62728",
-        memory_history_mode="full",
-    ),
-    "loop_matryoshka_last": VersionSpec(
-        name="loop_matryoshka_last",
-        family="loop",
-        loss_type="loopwise",
-        description="Loop retriever supervised at every loop, using only the previous loop state as memory.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#ff7f0e",
-        memory_history_mode="last",
-    ),
-    "loop_matryoshka_none": VersionSpec(
-        name="loop_matryoshka_none",
-        family="loop",
-        loss_type="loopwise",
-        description="Loop retriever supervised at every loop, without recurrent memory-state feedback.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#17becf",
-        use_memory_history=False,
-        memory_history_mode="none",
     ),
 }
 

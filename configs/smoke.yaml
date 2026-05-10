@@ -3,6 +3,7 @@ dataset_name: rlhn/rlhn-680K
 task_name: SciFact
 tmax: 10
 loop_impl: memory_token
+loop_memory_mode: mean_pool
 detach_memory: false
 use_inbatch: false
 num_negatives: 3
@@ -13,7 +14,6 @@ epochs: 1
 batch_size: 2
 gradient_accumulation_steps: 1
 learning_rate_encoder: 2.0e-5
-learning_rate_adapter: 1.0e-4
 weight_decay: 0.01
 warmup_ratio: 0.05
 tau: 0.05

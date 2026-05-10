@@ -47,6 +47,9 @@ fi
 if [ -n "${SAVE_STEPS:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--save_steps "${SAVE_STEPS}")
 fi
+if [ -n "${LOOP_MEMORY_MODE:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--loop_memory_mode "${LOOP_MEMORY_MODE}")
+fi
 if [ "${#TRAIN_EXTRA_ARGS[@]}" -gt 0 ]; then
   echo "Extra train args: ${TRAIN_EXTRA_ARGS[*]}"
 fi
