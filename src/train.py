@@ -53,6 +53,7 @@ DEFAULTS: Dict[str, Any] = {
     "dataloader_num_workers": 4,
     "use_inbatch": False,
     "loop_memory_mode": "mean_pool",
+    "loop_query_mode": "initial_embedding",
 }
 
 
@@ -85,7 +86,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save_steps", type=int, default=None)
     parser.add_argument("--max_steps", type=int, default=None)
     parser.add_argument("--dataloader_num_workers", type=int, default=None)
-    parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "token_concat"], default=None)
+    parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "none", "token_concat"], default=None)
+    parser.add_argument("--loop_query_mode", choices=["initial_embedding", "recurrent_hidden"], default=None)
     return parser
 
 
@@ -94,6 +96,21 @@ def parse_args() -> argparse.Namespace:
     raw_args = parser.parse_args()
     config = load_yaml(raw_args.config)
     args = merge_cli_with_config(raw_args, DEFAULTS, config)
+    version_spec = get_version_spec(args.version)
+    if version_spec.loop_memory_mode is not None:
+        if args.loop_memory_mode != version_spec.loop_memory_mode:
+            print(
+                f"Version {args.version} uses loop_memory_mode={version_spec.loop_memory_mode}; "
+                f"overriding requested value {args.loop_memory_mode}."
+            )
+        args.loop_memory_mode = version_spec.loop_memory_mode
+    if version_spec.loop_query_mode is not None:
+        if args.loop_query_mode != version_spec.loop_query_mode:
+            print(
+                f"Version {args.version} uses loop_query_mode={version_spec.loop_query_mode}; "
+                f"overriding requested value {args.loop_query_mode}."
+            )
+        args.loop_query_mode = version_spec.loop_query_mode
     if args.bf16 and args.fp16:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
     if args.use_inbatch:
@@ -213,6 +230,7 @@ def run_sanity_checks(
         "  memory_tokens: "
         f"included={debug.get('memory_tokens_included', False)} "
         f"loop_memory_mode={debug.get('loop_memory_mode', 'mean_pool')} "
+        f"loop_query_mode={debug.get('loop_query_mode', 'initial_embedding')} "
         f"query_len={debug.get('query_token_length')} "
         f"last_memory_tokens={debug.get('last_memory_tokens')} "
         f"last_input_len={debug.get('last_input_length')}"
@@ -297,6 +315,7 @@ def main() -> None:
         loop_impl=args.loop_impl,
         detach_memory=args.detach_memory,
         loop_memory_mode=args.loop_memory_mode,
+        loop_query_mode=args.loop_query_mode,
     ).to(device)
     assert_encoder_only_trainable(model)
 
@@ -317,7 +336,7 @@ def main() -> None:
         "Experiment config: "
         f"loop_impl={args.loop_impl}, use_inbatch={args.use_inbatch}, "
         f"tmax={args.tmax}, detach_memory={args.detach_memory}, "
-        f"loop_memory_mode={args.loop_memory_mode}"
+        f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}"
     )
     model.train()
     optimizer.zero_grad(set_to_none=True)

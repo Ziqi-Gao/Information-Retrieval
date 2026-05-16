@@ -10,3 +10,7 @@ mkdir -p slurm_logs "${EVAL_OUTPUT}"
 sbatch ${SBATCH_ARGS} --export=ALL,VERSION=standard,CHECKPOINT_DIR=${OUTPUT_BASE}/standard/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=false scripts/slurm_eval.sbatch
 sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_final,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_final/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch
 sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_matryoshka,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_matryoshka/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch
+sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_final_recurrent_mean_pool,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_final_recurrent_mean_pool/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch
+sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_matryoshka_recurrent_mean_pool,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_matryoshka_recurrent_mean_pool/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch
+sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_final_recurrent_no_memory,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_final_recurrent_no_memory/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch
+sbatch ${SBATCH_ARGS} --export=ALL,VERSION=loop_matryoshka_recurrent_no_memory,CHECKPOINT_DIR=${OUTPUT_BASE}/loop_matryoshka_recurrent_no_memory/final,OUTPUT_DIR=${EVAL_OUTPUT},EVAL_ALL_LOOPS=true scripts/slurm_eval.sbatch

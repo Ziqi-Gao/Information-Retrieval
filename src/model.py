@@ -10,7 +10,8 @@ from transformers import AutoModel, AutoTokenizer
 from .utils import ensure_dir, write_json
 
 
-LOOP_MEMORY_MODES = {"first_token", "mean_pool", "token_concat"}
+LOOP_MEMORY_MODES = {"first_token", "mean_pool", "none", "token_concat"}
+LOOP_QUERY_MODES = {"initial_embedding", "recurrent_hidden"}
 
 
 class LoopMatryoshkaRetriever(nn.Module):
@@ -23,6 +24,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         loop_impl: str = "memory_token",
         detach_memory: bool = False,
         loop_memory_mode: str = "mean_pool",
+        loop_query_mode: str = "initial_embedding",
     ) -> None:
         super().__init__()
         if tmax < 1:
@@ -40,6 +42,10 @@ class LoopMatryoshkaRetriever(nn.Module):
             known = ", ".join(sorted(LOOP_MEMORY_MODES))
             raise ValueError(f"loop_memory_mode must be one of {{{known}}}, got {loop_memory_mode!r}.")
         self.loop_memory_mode = str(loop_memory_mode)
+        if loop_query_mode not in LOOP_QUERY_MODES:
+            known = ", ".join(sorted(LOOP_QUERY_MODES))
+            raise ValueError(f"loop_query_mode must be one of {{{known}}}, got {loop_query_mode!r}.")
+        self.loop_query_mode = str(loop_query_mode)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         self.encoder = AutoModel.from_pretrained(model_name_or_path)
@@ -83,6 +89,8 @@ class LoopMatryoshkaRetriever(nn.Module):
             memory_tokens = query_hidden[:, :1, :]
         elif self.loop_memory_mode == "mean_pool":
             memory_tokens = pooled.unsqueeze(1)
+        elif self.loop_memory_mode == "none":
+            memory_tokens = query_hidden[:, :0, :]
         elif self.loop_memory_mode == "token_concat":
             memory_tokens = query_hidden
         else:
@@ -123,14 +131,14 @@ class LoopMatryoshkaRetriever(nn.Module):
         input_ids = encoded["input_ids"].to(device)
         attention_mask = encoded["attention_mask"].to(device)
 
-        query_token_embeds = self.encoder.get_input_embeddings()(input_ids)
+        initial_query_token_embeds = self.encoder.get_input_embeddings()(input_ids)
         batch_size = input_ids.size(0)
         query_token_length = input_ids.size(1)
         last_input_length = query_token_length
         last_memory_tokens = 0
 
         states: List[torch.Tensor] = []
-        inputs_embeds = query_token_embeds
+        inputs_embeds = initial_query_token_embeds
         current_attention_mask = attention_mask
 
         for t in range(1, loop_limit + 1):
@@ -149,6 +157,8 @@ class LoopMatryoshkaRetriever(nn.Module):
             memory_tokens_tensor = self._memory_tokens_from_query_hidden(query_hidden, pooled)
             if self.loop_memory_mode == "token_concat":
                 memory_mask = attention_mask
+            elif self.loop_memory_mode == "none":
+                memory_mask = attention_mask[:, :0]
             else:
                 memory_mask = torch.ones(
                     batch_size,
@@ -156,12 +166,19 @@ class LoopMatryoshkaRetriever(nn.Module):
                     dtype=attention_mask.dtype,
                     device=device,
                 )
-            inputs_embeds = torch.cat([memory_tokens_tensor, query_token_embeds], dim=1)
+            if self.loop_query_mode == "initial_embedding":
+                next_query_token_embeds = initial_query_token_embeds
+            elif self.loop_query_mode == "recurrent_hidden":
+                next_query_token_embeds = query_hidden
+            else:
+                raise ValueError(f"Unknown loop_query_mode: {self.loop_query_mode}")
+            inputs_embeds = torch.cat([memory_tokens_tensor, next_query_token_embeds], dim=1)
             current_attention_mask = torch.cat([memory_mask, attention_mask], dim=1)
 
         self.last_query_loop_debug = {
             "loop_impl": self.loop_impl,
             "loop_memory_mode": self.loop_memory_mode,
+            "loop_query_mode": self.loop_query_mode,
             "query_token_length": int(query_token_length),
             "last_memory_tokens": int(last_memory_tokens),
             "last_input_length": int(last_input_length),
@@ -271,6 +288,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             "loop_impl": self.loop_impl,
             "detach_memory": self.detach_memory,
             "loop_memory_mode": self.loop_memory_mode,
+            "loop_query_mode": self.loop_query_mode,
             "embedding_dim": self.embedding_dim,
         }
 
@@ -317,6 +335,7 @@ def load_model(
         config.pop(legacy_key, None)
     config.pop("embedding_dim", None)
     config.setdefault("loop_memory_mode", "mean_pool")
+    config.setdefault("loop_query_mode", "initial_embedding")
     model = LoopMatryoshkaRetriever(**config)
     state = torch.load(state_path, map_location=map_location or "cpu")
     missing, unexpected = model.load_state_dict(state, strict=False)

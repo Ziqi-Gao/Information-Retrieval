@@ -12,16 +12,22 @@ Add a new `VersionSpec` there first. Choose:
 - `family="loop"` for memory-token loop models that should unroll query loops and evaluate all loop depths.
 - `plot_kind="baseline"` for horizontal baselines.
 - `plot_kind="curve"` for loop-depth curves.
+- `loop_memory_mode` when a version must pin one memory construction.
+- `loop_query_mode` when a version must pin how query-token inputs are passed between loops.
 
 Training behavior is selected in `src/train.py` from the version family. Evaluation behavior is selected in
 `src/eval_mteb.py` from the same registry. Plot colors and baseline/curve behavior are also read from the registry by
 `src/plot_results.py`.
 
-The current final registry intentionally keeps only:
+The current final registry includes:
 
 - `standard`
 - `loop_final`
 - `loop_matryoshka`
+- `loop_final_recurrent_mean_pool`
+- `loop_matryoshka_recurrent_mean_pool`
+- `loop_final_recurrent_no_memory`
+- `loop_matryoshka_recurrent_no_memory`
 
 All trainable parameters must live under `model.encoder`. Do not add trainable projection heads, memory adapters, state
 embeddings, gates, or learned scaling unless the ablation is explicitly about adding new trainable parameters.
@@ -41,4 +47,10 @@ Parameter-free loop memory modes are configured with `loop_memory_mode`:
 
 - `first_token`: prepend the previous loop's first query-token hidden state.
 - `mean_pool`: prepend the previous loop's mean-pooled query hidden state.
+- `none`: prepend no memory token.
 - `token_concat`: prepend all previous-loop query-token hidden states.
+
+Parameter-free loop query update modes are configured with `loop_query_mode`:
+
+- `initial_embedding`: prepend memory to the original query token embeddings at every loop.
+- `recurrent_hidden`: prepend memory to the previous loop's query-token hidden states.

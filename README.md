@@ -23,7 +23,8 @@ for t = 1..Tmax:
     y_t = ModernBERT(x_t)
     h_t = normalize(mean_pool(query-token positions in y_t))
     m_t = memory(y_t)
-    x_{t+1} = [m_t, Emb(query tokens)]
+    q_{t+1} = query_update(y_t, Emb(query tokens))
+    x_{t+1} = [m_t, q_{t+1}]
 ```
 
 ```mermaid
@@ -50,12 +51,17 @@ flowchart TD
     LoopEncoder --> QueryOnly["Drop memory-token positions<br/>keep query-token hidden states"]
     QueryOnly --> LoopPool["mean_pool + L2 normalize -> h_t"]
     QueryOnly --> MemoryMode{"parameter-free<br/>loop_memory_mode"}
+    QueryOnly --> QueryMode{"parameter-free<br/>loop_query_mode"}
     MemoryMode --> FirstToken["first_token: [B,1,H]"]
     MemoryMode --> MeanPool["mean_pool: [B,1,H]"]
     MemoryMode --> TokenConcat["token_concat: [B,L,H]"]
-    FirstToken --> NextLoop["prepend memory to original query embeddings"]
+    QueryMode --> InitialQuery["initial_embedding:<br/>original query embeddings"]
+    QueryMode --> RecurrentQuery["recurrent_hidden:<br/>previous query hidden states"]
+    FirstToken --> NextLoop["prepend memory to query inputs"]
     MeanPool --> NextLoop
     TokenConcat --> NextLoop
+    InitialQuery --> NextLoop
+    RecurrentQuery --> NextLoop
     NextLoop --> LoopEncoder
 
     LoopPool --> LoopLoss{"Loop objective"}
@@ -80,7 +86,15 @@ The loop memory construction is parameter-free and selected by `loop_memory_mode
 | --- | --- |
 | `first_token` | First query-token hidden state, shape `[B, 1, H]`. |
 | `mean_pool` | Mean-pooled query-token hidden state, shape `[B, 1, H]`. This is the default. |
+| `none` | No memory token is prepended; the next loop receives only the selected query-token inputs. |
 | `token_concat` | All query-token hidden states, shape `[B, L, H]`; the next loop input has shape `[B, 2L, H]`. |
+
+The query-token inputs passed to the next loop are selected by `loop_query_mode`:
+
+| Mode | Query-token inputs passed to the next loop |
+| --- | --- |
+| `initial_embedding` | Reuse the original query token embeddings at every loop. This is the default used by the original loop variants. |
+| `recurrent_hidden` | Reuse the previous loop's query-token hidden states, so the next loop refines the token-level query state. |
 
 Every query state and document embedding is full-dimensional and L2-normalized. With ModernBERT-base, `H = 768`.
 
@@ -93,6 +107,10 @@ Experiment versions are registered in [src/experiments.py](src/experiments.py). 
 | `standard` | baseline | Single-pass no-loop retriever; only ModernBERT encoder parameters are trainable. |
 | `loop_final` | loop curve | Parameter-free memory loop retriever supervised only at the final loop. |
 | `loop_matryoshka` | loop curve | Parameter-free memory loop retriever supervised at every loop. |
+| `loop_final_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised only at the final loop. |
+| `loop_matryoshka_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised at every loop. |
+| `loop_final_recurrent_no_memory` | loop curve | No-memory recurrent query-token hidden states; supervised only at the final loop. |
+| `loop_matryoshka_recurrent_no_memory` | loop curve | No-memory recurrent query-token hidden states; supervised at every loop. |
 
 ## Repository Layout
 
@@ -139,7 +157,7 @@ From this directory:
 bash scripts/run_smoke.sh
 ```
 
-This trains the three main variants on the smoke config and evaluates SciFact. The Python orchestrator exposes the same workflow:
+This trains the registered main variants on the smoke config and evaluates SciFact. The Python orchestrator exposes the same workflow:
 
 ```bash
 python -m src.run_all --config configs/smoke.yaml --stage all
@@ -171,7 +189,21 @@ python -m src.train --config configs/preexp.yaml --version loop_final --loop_mem
 python -m src.train --config configs/preexp.yaml --version loop_matryoshka --loop_memory_mode token_concat
 ```
 
-The version names stay fixed. `loop_memory_mode` changes only how the previous loop's query hidden states are converted into memory tokens for the next loop.
+The generic version names stay fixed. `loop_memory_mode` changes only how the previous loop's query hidden states are converted into memory tokens for the next loop. `loop_query_mode` changes whether the next loop receives the original query token embeddings or the previous loop's query-token hidden states.
+
+The recurrent mean-pool variants are registered as explicit versions so their behavior is reproducible without extra CLI overrides:
+
+```bash
+python -m src.train --config configs/preexp.yaml --version loop_final_recurrent_mean_pool
+python -m src.train --config configs/preexp.yaml --version loop_matryoshka_recurrent_mean_pool
+```
+
+The recurrent no-memory variants remove the prepended memory token entirely and pass only the previous loop's query-token hidden states to the next loop:
+
+```bash
+python -m src.train --config configs/preexp.yaml --version loop_final_recurrent_no_memory
+python -m src.train --config configs/preexp.yaml --version loop_matryoshka_recurrent_no_memory
+```
 
 ## Evaluation And Plots
 

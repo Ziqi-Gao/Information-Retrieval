@@ -4,6 +4,7 @@ task_name: SciFact
 tmax: 10
 loop_impl: memory_token
 loop_memory_mode: mean_pool
+loop_query_mode: initial_embedding
 detach_memory: false
 use_inbatch: false
 num_negatives: 7

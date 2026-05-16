@@ -28,11 +28,13 @@ echo "Python: $(which "${PYTHON_BIN}")"
 VERSION=${VERSION:-standard}
 CONFIG=${CONFIG:-configs/preexp.yaml}
 OUTPUT_BASE=${OUTPUT_BASE:-outputs/preexp}
+RUN_NAME=${RUN_NAME:-${VERSION}}
 
-OUTDIR="${OUTPUT_BASE}/${VERSION}"
+OUTDIR="${OUTPUT_BASE}/${RUN_NAME}"
 
 mkdir -p "${OUTDIR}" slurm_logs
 
+echo "Run name: ${RUN_NAME}"
 echo "Training version: ${VERSION}"
 echo "Config: ${CONFIG}"
 echo "Output: ${OUTDIR}"
@@ -49,6 +51,9 @@ if [ -n "${SAVE_STEPS:-}" ]; then
 fi
 if [ -n "${LOOP_MEMORY_MODE:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--loop_memory_mode "${LOOP_MEMORY_MODE}")
+fi
+if [ -n "${LOOP_QUERY_MODE:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--loop_query_mode "${LOOP_QUERY_MODE}")
 fi
 if [ "${#TRAIN_EXTRA_ARGS[@]}" -gt 0 ]; then
   echo "Extra train args: ${TRAIN_EXTRA_ARGS[*]}"
