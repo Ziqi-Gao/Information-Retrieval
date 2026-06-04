@@ -6,6 +6,15 @@ mkdir -p slurm_logs outputs/smoke outputs/smoke_eval
 CONFIG=configs/smoke.yaml
 OUTPUT_BASE=outputs/smoke
 SBATCH_ARGS=${SBATCH_ARGS:-}
+DEFAULT_EVAL_TASKS=${DEFAULT_EVAL_TASKS:-SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID}
+if [ -n "${TASK_NAMES:-}" ]; then
+  TASK_NAMES="${TASK_NAMES}"
+elif [ -n "${TASK_NAME:-}" ]; then
+  TASK_NAMES="${TASK_NAME}"
+else
+  TASK_NAMES="${DEFAULT_EVAL_TASKS}"
+fi
+export TASK_NAMES
 
 jid_standard=$(sbatch ${SBATCH_ARGS} --parsable --export=ALL,VERSION=standard,CONFIG=${CONFIG},OUTPUT_BASE=${OUTPUT_BASE} scripts/slurm_train.sbatch)
 jid_loop_final=$(sbatch ${SBATCH_ARGS} --parsable --export=ALL,VERSION=loop_final,CONFIG=${CONFIG},OUTPUT_BASE=${OUTPUT_BASE} scripts/slurm_train.sbatch)

@@ -4,6 +4,15 @@ set -euo pipefail
 OUTPUT_BASE=${OUTPUT_BASE:-outputs/preexp}
 EVAL_OUTPUT=${EVAL_OUTPUT:-outputs/preexp_eval}
 SBATCH_ARGS=${SBATCH_ARGS:-}
+DEFAULT_EVAL_TASKS=${DEFAULT_EVAL_TASKS:-SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID}
+if [ -n "${TASK_NAMES:-}" ]; then
+  TASK_NAMES="${TASK_NAMES}"
+elif [ -n "${TASK_NAME:-}" ]; then
+  TASK_NAMES="${TASK_NAME}"
+else
+  TASK_NAMES="${DEFAULT_EVAL_TASKS}"
+fi
+export TASK_NAMES
 
 mkdir -p slurm_logs "${EVAL_OUTPUT}"
 

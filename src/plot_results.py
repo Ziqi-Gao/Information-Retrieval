@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 
-from .utils import ensure_dir
+from .utils import ensure_dir, safe_task_dir_name
 
 
 PLOT_METRICS = [
@@ -613,25 +613,8 @@ def write_mechanism_summary(rows: List[Dict[str, Any]], output_path: Path) -> No
         writer.writerows(summary_rows)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Plot loop-depth retrieval metrics.")
-    input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument("--summary_csv")
-    input_group.add_argument("--summary_dir", help="Directory containing */results_summary.csv files.")
-    parser.add_argument("--output_dir", default="outputs/plots")
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    output_dir = ensure_dir(args.output_dir)
-    if args.summary_dir:
-        paths = summary_paths_from_dir(Path(args.summary_dir))
-    else:
-        paths = [Path(args.summary_csv)]
-    rows, fieldnames = read_summaries(paths)
-    rows = latest_rows(rows)
-    rows = sorted(rows, key=lambda row: series_sort_key(str(row.get("series_name")), rows) + (int(row["loop_idx"]),))
+def write_plot_bundle(rows: List[Dict[str, Any]], fieldnames: List[str], output_dir: Path) -> None:
+    output_dir = ensure_dir(output_dir)
     write_summary(rows, fieldnames, output_dir / "results_summary_all.csv")
     write_summary(rows, fieldnames, output_dir / "loop_depth_metrics.csv")
 
@@ -685,6 +668,37 @@ def main() -> None:
     with open(output_dir / "best_loop_summary.json", "w", encoding="utf-8") as handle:
         json.dump(best_loop_summary(rows), handle, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Plot loop-depth retrieval metrics.")
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--summary_csv")
+    input_group.add_argument("--summary_dir", help="Directory containing */results_summary.csv files.")
+    parser.add_argument("--output_dir", default="outputs/plots")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    output_dir = ensure_dir(args.output_dir)
+    if args.summary_dir:
+        paths = summary_paths_from_dir(Path(args.summary_dir))
+    else:
+        paths = [Path(args.summary_csv)]
+    rows, fieldnames = read_summaries(paths)
+    rows = latest_rows(rows)
+    rows = sorted(rows, key=lambda row: series_sort_key(str(row.get("series_name")), rows) + (int(row["loop_idx"]),))
+    write_summary(rows, fieldnames, output_dir / "results_summary_all.csv")
+    write_summary(rows, fieldnames, output_dir / "loop_depth_metrics.csv")
+
+    task_names = sorted({str(row.get("task") or "unknown") for row in rows})
+    if len(task_names) == 1:
+        write_plot_bundle(rows, fieldnames, output_dir)
+    else:
+        for task_name in task_names:
+            task_rows = [row for row in rows if str(row.get("task") or "unknown") == task_name]
+            write_plot_bundle(task_rows, fieldnames, output_dir / safe_task_dir_name(task_name))
 
     print(f"Wrote plots and summaries to {output_dir}")
 

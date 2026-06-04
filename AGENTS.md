@@ -37,6 +37,7 @@ Replace the placeholder patterns with the actual local username, cluster project
 
 - Register experiment variants in `src/experiments.py` first. Training, evaluation, plotting, README, and scripts should derive from those version names.
 - Keep version naming consistent across `src/experiments.py`, `src/train.py`, scripts, docs, and plots.
+- Evaluation datasets must be MTEB text retrieval tasks. Keep `task_name` for single-task compatibility and use `task_names` for multi-task evaluation.
 - Current experiments should update only ModernBERT encoder parameters. Do not add trainable projection heads, memory projections, memory-state embeddings, gates, or learned scaling unless the user explicitly asks for that ablation.
 - Current parameter-free loop-memory modes mean:
   - `first_token`: prepend the previous loop's first query-token hidden state to the next loop.
@@ -54,11 +55,13 @@ Replace the placeholder patterns with the actual local username, cluster project
 - Do not delete or overwrite `outputs/plots/` unless the user explicitly asks. The user previously asked to preserve plot files.
 - When removing stale experiment outputs, delete only the specific method directories that are obsolete or explicitly requested.
 - Plotting should read combined summaries and write back under `outputs/plots/` by default.
+- Multi-task evaluation must keep raw/parsed MTEB outputs in task-specific directories and plot each task separately. Do not mix different `task` values into one loop-depth plot.
 
 ## Slurm And Local Runtime
 
 - Use `scripts/slurm_env.sh` for batch jobs. It should remain free of hardcoded local paths.
 - Slurm wrapper scripts should accept scheduler-specific options through `SBATCH_ARGS`.
+- Slurm evaluation should default to the recommended retrieval-task set (`SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID`) and support overrides with `TASK_NAME=<single-task>`, `TASK_NAMES=<comma-separated-task-list>`, or `DEFAULT_EVAL_TASKS=<comma-separated-task-list>`. `TASK_NAMES` takes precedence.
 - If `CONDA_ENV` is unset, scripts should still work with `PYTHON_BIN` or the shell's default `python`.
 - Hugging Face and Matplotlib caches should default to ignored relative directories such as `.hf_cache/` and `.mplconfig/`.
 

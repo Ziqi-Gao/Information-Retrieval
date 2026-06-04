@@ -24,6 +24,31 @@ def str2bool(value: Any) -> bool:
     raise argparse.ArgumentTypeError(f"Expected a boolean value, got {value!r}")
 
 
+def split_task_names(values: Optional[Iterable[str]], fallback: Optional[str] = None) -> List[str]:
+    raw_values: List[str] = []
+    if values:
+        if isinstance(values, str):
+            raw_values.append(values)
+        else:
+            raw_values.extend(str(value) for value in values if value is not None)
+    elif fallback:
+        raw_values.append(str(fallback))
+
+    tasks: List[str] = []
+    seen = set()
+    for raw_value in raw_values:
+        for part in raw_value.replace(";", ",").split(","):
+            task_name = part.strip()
+            if task_name and task_name not in seen:
+                tasks.append(task_name)
+                seen.add(task_name)
+    return tasks or ["SciFact"]
+
+
+def safe_task_dir_name(task_name: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in task_name)
+
+
 def ensure_dir(path: Union[os.PathLike, str]) -> Path:
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)

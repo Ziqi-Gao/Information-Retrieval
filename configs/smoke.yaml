@@ -1,6 +1,8 @@
 model_name_or_path: answerdotai/ModernBERT-base
 dataset_name: rlhn/rlhn-680K
 task_name: SciFact
+task_names:
+  - SciFact
 tmax: 10
 loop_impl: memory_token
 loop_memory_mode: mean_pool

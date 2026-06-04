@@ -8,7 +8,7 @@ src/experiments.py
 
 Add a new `VersionSpec` there first. Choose:
 
-- `family="standard"` for no-loop models that should use the standard query path and one SciFact evaluation row.
+- `family="standard"` for no-loop models that should use the standard query path and one row per configured retrieval task.
 - `family="loop"` for memory-token loop models that should unroll query loops and evaluate all loop depths.
 - `plot_kind="baseline"` for horizontal baselines.
 - `plot_kind="curve"` for loop-depth curves.

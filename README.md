@@ -7,7 +7,7 @@ The current experimental pipeline is:
 ```text
 ModernBERT-base
 -> RLHN-680K hard-negative training subset
--> SciFact retrieval evaluation with MTEB
+-> MTEB retrieval evaluation, with SciFact as the default task
 ```
 
 The project intentionally does not use online tuning, exit gates, adaptive stopping, dimension slicing, pseudo labels, in-batch negatives, trainable projection heads, or trainable memory adapters. All reported variants update only the ModernBERT encoder parameters and use normalized dot product similarity, equivalent to cosine similarity, with hard-negative cross entropy and `tau = 0.05`.
@@ -69,7 +69,7 @@ flowchart TD
     LoopLoss --> EveryLoop["loop_matryoshka:<br/>average loss over h_1..h_T"]
     DocPool --> LoopLoss
 
-    FinalOnly --> Eval["SciFact MTEB retrieval evaluation"]
+    FinalOnly --> Eval["MTEB retrieval evaluation"]
     EveryLoop --> Eval
     StdLoss --> Eval
 ```
@@ -157,7 +157,7 @@ From this directory:
 bash scripts/run_smoke.sh
 ```
 
-This trains the registered main variants on the smoke config and evaluates SciFact. The Python orchestrator exposes the same workflow:
+This trains the registered main variants on the smoke config and evaluates the configured MTEB retrieval tasks. The Python orchestrator exposes the same workflow:
 
 ```bash
 python -m src.run_all --config configs/smoke.yaml --stage all
@@ -207,7 +207,7 @@ python -m src.train --config configs/preexp.yaml --version loop_matryoshka_recur
 
 ## Evaluation And Plots
 
-Evaluation is parameter-free inference on SciFact through MTEB. It writes raw MTEB JSON, parsed metrics, and summary rows. The primary metrics are:
+Evaluation is parameter-free inference on MTEB retrieval tasks. The default config evaluates `SciFact`, and the evaluation code also supports multiple retrieval tasks in one run. It writes raw MTEB JSON, parsed metrics, and summary rows. The primary metrics are:
 
 - `nDCG@10`
 - `Recall@10`
@@ -225,6 +225,63 @@ python -m src.plot_results \
 
 Plotting is implemented with the Python standard library plus Matplotlib; it does not depend on pandas.
 
+### Multiple Evaluation Tasks
+
+Use `task_name` for the legacy single-task config and `task_names` for the multi-task config:
+
+```yaml
+task_name: SciFact
+task_names:
+  - SciFact
+  - NFCorpus
+  - SCIDOCS
+  - FiQA2018
+  - ArguAna
+  - Touche2020
+  - TRECCOVID
+```
+
+Direct CLI evaluation accepts either repeated task names or a comma-separated list:
+
+```bash
+python -m src.eval_mteb \
+  --checkpoint_dir outputs/preexp/standard/final \
+  --version standard \
+  --task_names SciFact,NFCorpus,SCIDOCS \
+  --eval_all_loops false \
+  --output_dir outputs/preexp_eval
+```
+
+Local wrappers default to `SciFact`. They can run one task:
+
+```bash
+TASK_NAME=NFCorpus bash scripts/run_eval_all.sh
+```
+
+or several tasks:
+
+```bash
+TASK_NAMES="SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID" \
+  bash scripts/run_eval_all.sh
+```
+
+Slurm wrappers default to the full recommended retrieval-task set:
+
+```text
+SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID
+```
+
+They support the same environment variables for overrides:
+
+```bash
+TASK_NAME=NFCorpus bash scripts/slurm_run_eval_all.sh
+
+TASK_NAMES="SciFact,NFCorpus,SCIDOCS" \
+  bash scripts/slurm_run_eval_all.sh
+```
+
+`TASK_NAMES` takes precedence over `TASK_NAME`. For Slurm, `DEFAULT_EVAL_TASKS` can also override the default full list without changing repository files.
+
 ## Output Convention
 
 Smoke and pre-experiment runs use one directory per method under the run group:
@@ -235,13 +292,28 @@ outputs/preexp/<method>/
   train_log.jsonl
 
 outputs/preexp_eval/
-  <method>/              raw and parsed MTEB outputs
+  <method>/              Slurm per-method summaries, when submitted per method
+  <version>/<task>/      raw and parsed MTEB outputs for local aggregate runs
   results_summary.csv
 
 outputs/plots/
   results_summary_all.csv
   loop_depth_vs_*.png
   best_loop_summary.json
+```
+
+When a summary contains one task, plots are written directly under the requested plot directory. When a summary contains multiple tasks, the combined CSVs stay at the plot root and each task gets its own plot subdirectory, for example:
+
+```text
+outputs/preexp_eval/plots/
+  results_summary_all.csv
+  loop_depth_metrics.csv
+  SciFact/
+    loop_depth_vs_ndcg10.png
+    best_loop_summary.json
+  NFCorpus/
+    loop_depth_vs_ndcg10.png
+    best_loop_summary.json
 ```
 
 `outputs/` is ignored by git because checkpoints are large. Keep reproducible code/configs in the repository and archive generated artifacts separately.
