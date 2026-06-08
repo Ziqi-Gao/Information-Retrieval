@@ -1,0 +1,50 @@
+method,method_label,task,expected_loops,available_loops,missing_loops,complete
+standard,standard,SciFact,1,1,,yes
+standard,standard,NFCorpus,1,1,,yes
+standard,standard,SCIDOCS,1,1,,yes
+standard,standard,FiQA2018,1,1,,yes
+standard,standard,ArguAna,1,1,,yes
+standard,standard,Touche2020,1,1,,yes
+standard,standard,TRECCOVID,1,1,,yes
+loop_final_mean_pool,final-only / mean pool,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_mean_pool,final-only / mean pool,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_mean_pool,loopwise / mean pool,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_mean_pool,final-only / mean pool / recurrent hidden,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_mean_pool,loopwise / mean pool / recurrent hidden,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9,10,no
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,SciFact,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,NFCorpus,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,SCIDOCS,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,FiQA2018,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,ArguAna,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,Touche2020,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
+loop_matryoshka_recurrent_no_memory,loopwise / no memory / recurrent hidden,TRECCOVID,1 2 3 4 5 6 7 8 9 10,1 2 3 4 5 6 7 8 9 10,,yes
