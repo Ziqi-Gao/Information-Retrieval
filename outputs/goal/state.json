@@ -1,10 +1,9 @@
 {
   "baseline": {
-    "manifest": null,
-    "path": null,
-    "reason": "baseline summary or manifest is missing",
-    "sha256": null,
-    "status": "missing"
+    "manifest": "outputs/baselines/standard_frozen/baseline_manifest.json",
+    "path": "outputs/baselines/standard_frozen/results_summary.csv",
+    "sha256": "41984b40e07ef7160444172fcaf895bcf74b42e44de5c8a700c3ac942cdbdee5",
+    "status": "frozen"
   },
   "best_candidate": null,
   "budget": {
@@ -27,7 +26,7 @@
     "TRECCOVID"
   ],
   "last_scoreboard": null,
-  "next_required_action": "Freeze or validate baseline before real autonomous experiments.",
+  "next_required_action": "Start autonomous research loop only through batch manifest validation and goal_submit_batch.py.",
   "open_jobs": [
     {
       "batch_id": "batch_001",
@@ -45,11 +44,11 @@
       "type": "eval"
     }
   ],
-  "phase": "DRY_RUN_SUBMIT",
+  "phase": "READY_FOR_AUTONOMOUS_GOAL",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "6ef02a01075f43b57ca5eecdb6697cb759c47755",
+    "commit": "10bc97ca5ba7b046b5359853dc5ea43e9531ad34",
     "dirty": true
   },
   "win_margin": 0.001

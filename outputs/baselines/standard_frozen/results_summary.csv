@@ -1,0 +1,8 @@
+version,task,loop_idx,ndcg_at_10,recall_at_10,recall_at_100,mrr_at_10,map_at_10,checkpoint_dir,raw_result_path
+standard,SciFact,1,0.53932,0.6825,0.84189,0.5057208994708996,0.48787,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/SciFact/raw_mteb_results_loop1.json
+standard,NFCorpus,1,0.23849,0.10969,0.21405,0.42654184480809854,0.07691,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/NFCorpus/raw_mteb_results_loop1.json
+standard,SCIDOCS,1,0.13671,0.14142,0.32357,0.25208928571428574,0.07778,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/SCIDOCS/raw_mteb_results_loop1.json
+standard,FiQA2018,1,0.25855,0.31617,0.55952,0.3234041250244955,0.19737,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/FiQA2018/raw_mteb_results_loop1.json
+standard,ArguAna,1,0.50874,0.77738,0.95661,0.4261357221883542,0.42445,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/ArguAna/raw_mteb_results_loop1.json
+standard,Touche2020,1,0.19917,0.14636,0.43836,0.34426627793974734,0.07979,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/Touche2020/raw_mteb_results_loop1.json
+standard,TRECCOVID,1,0.67118,0.01737,0.11065,0.8995238095238095,0.0151,outputs/preexp/standard/final,outputs/preexp_eval/standard/standard/TRECCOVID/raw_mteb_results_loop1.json
