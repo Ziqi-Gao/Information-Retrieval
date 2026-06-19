@@ -8,16 +8,31 @@ src/experiments.py
 
 Add a new `VersionSpec` there first. Choose:
 
-- `family="standard"` for no-loop models that should use the standard query path and one SciFact evaluation row.
+- `family="standard"` for no-loop models that should use the standard query path and one row per configured retrieval task.
 - `family="loop"` for memory-token loop models that should unroll query loops and evaluate all loop depths.
 - `plot_kind="baseline"` for horizontal baselines.
 - `plot_kind="curve"` for loop-depth curves.
+- `loop_memory_mode` when a version must pin one memory construction.
+- `loop_query_mode` when a version must pin how query-token inputs are passed between loops.
 
 Training behavior is selected in `src/train.py` from the version family. Evaluation behavior is selected in
 `src/eval_mteb.py` from the same registry. Plot colors and baseline/curve behavior are also read from the registry by
 `src/plot_results.py`.
 
-For a one-off ablation script, follow `scripts/run_standard_more_steps.sh`:
+The current final registry includes:
+
+- `standard`
+- `loop_final`
+- `loop_matryoshka`
+- `loop_final_recurrent_mean_pool`
+- `loop_matryoshka_recurrent_mean_pool`
+- `loop_final_recurrent_no_memory`
+- `loop_matryoshka_recurrent_no_memory`
+
+All trainable parameters must live under `model.encoder`. Do not add trainable projection heads, memory adapters, state
+embeddings, gates, or learned scaling unless the ablation is explicitly about adding new trainable parameters.
+
+For a one-off ablation:
 
 1. Train into `outputs/<method>/`.
 2. Rename the final checkpoint to `outputs/<method>/model/`.
@@ -28,27 +43,14 @@ For a one-off ablation script, follow `scripts/run_standard_more_steps.sh`:
 Do not add online tuning, exit gates, dimension slicing, pseudo labels, or in-batch loss unless the ablation is explicitly
 about one of those features. Keep each ablation isolated under its own `outputs/<method>/` directory.
 
-The memory-history range ablations add last-state-only and no-feedback variants:
+Parameter-free loop memory modes are configured with `loop_memory_mode`:
 
-- `loop_final_last`
-- `loop_final_none`
-- `loop_matryoshka_last`
-- `loop_matryoshka_none`
+- `first_token`: prepend the previous loop's first query-token hidden state.
+- `mean_pool`: prepend the previous loop's mean-pooled query hidden state.
+- `none`: prepend no memory token.
+- `token_concat`: prepend all previous-loop query-token hidden states.
 
-Run them with:
+Parameter-free loop query update modes are configured with `loop_query_mode`:
 
-```bash
-bash scripts/run_no_history_ablation.sh
-```
-
-On SLURM:
-
-```bash
-bash scripts/slurm_run_no_history_ablation.sh
-```
-
-They keep the loop training objectives unchanged and vary only `memory_history_mode`:
-
-- `full`: `h_t` receives the full prefix `h_1...h_{t-1}`.
-- `last`: `h_t` receives only the immediately preceding state `h_{t-1}`.
-- `none`: `h_t` receives no recurrent memory-state feedback.
+- `initial_embedding`: prepend memory to the original query token embeddings at every loop.
+- `recurrent_hidden`: prepend memory to the previous loop's query-token hidden states.

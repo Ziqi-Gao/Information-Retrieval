@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 from .experiments import MAIN_VERSIONS, get_version_spec
-from .utils import ensure_dir, load_yaml
+from .utils import ensure_dir, load_yaml, split_task_names
 
 
 def run(cmd: List[str]) -> None:
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = load_yaml(args.config)
-    task_name = config.get("task_name", "SciFact")
+    task_names = split_task_names(config.get("task_names"), config.get("task_name", "SciFact"))
     output_base, eval_output_dir = infer_paths(args.config)
     output_base = args.output_base or output_base
     eval_output_dir = args.eval_output_dir or eval_output_dir
@@ -86,8 +86,8 @@ def main() -> None:
                     f"{output_base}/{version}/final",
                     "--version",
                     version,
-                    "--task_name",
-                    task_name,
+                    "--task_names",
+                    ",".join(task_names),
                     "--eval_all_loops",
                     str(get_version_spec(version).eval_all_loops).lower(),
                     "--output_dir",

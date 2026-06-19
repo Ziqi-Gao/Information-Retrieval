@@ -8,7 +8,16 @@ import torch
 
 from .experiments import get_version_spec, version_names
 from .model import load_model
-from .utils import acquire_file_lock, ensure_dir, make_jsonable, release_file_lock, str2bool, write_json
+from .utils import (
+    acquire_file_lock,
+    ensure_dir,
+    make_jsonable,
+    release_file_lock,
+    safe_task_dir_name,
+    split_task_names,
+    str2bool,
+    write_json,
+)
 
 
 METRIC_ALIASES = {
@@ -72,6 +81,29 @@ def corpus_to_texts(corpus: Any) -> List[str]:
         else:
             texts.append(str(doc))
     return texts
+
+
+def metadata_value(task: Any, key: str) -> Any:
+    metadata = getattr(task, "metadata", None)
+    if isinstance(metadata, dict):
+        return metadata.get(key)
+    if metadata is not None and hasattr(metadata, key):
+        return getattr(metadata, key)
+    description = getattr(task, "description", None)
+    if isinstance(description, dict):
+        return description.get(key)
+    return getattr(task, key, None)
+
+
+def assert_retrieval_tasks(tasks: List[Any], requested_name: str) -> None:
+    if not tasks:
+        raise ValueError(f"MTEB returned no tasks for {requested_name!r}.")
+    for task in tasks:
+        task_type = metadata_value(task, "type")
+        task_type_text = str(getattr(task_type, "value", task_type)).split(".")[-1].lower()
+        if task_type is not None and task_type_text != "retrieval":
+            task_name = metadata_value(task, "name") or requested_name
+            raise ValueError(f"{task_name!r} is a {task_type!r} task, but this evaluator only supports Retrieval tasks.")
 
 
 class LoopRetrieverMTEBWrapper:
@@ -152,7 +184,13 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
         release_file_lock(lock_path)
 
 
-def evaluate_one_loop(args: argparse.Namespace, model, device: torch.device, loop_idx: int) -> Dict[str, Any]:
+def evaluate_one_loop(
+    args: argparse.Namespace,
+    model,
+    device: torch.device,
+    task_name: str,
+    loop_idx: int,
+) -> Dict[str, Any]:
     try:
         import mteb
     except ModuleNotFoundError as exc:
@@ -163,9 +201,10 @@ def evaluate_one_loop(args: argparse.Namespace, model, device: torch.device, loo
         ) from exc
 
     output_dir = ensure_dir(args.output_dir)
-    artifact_dir = ensure_dir(output_dir / args.version)
+    artifact_dir = ensure_dir(output_dir / args.version / safe_task_dir_name(task_name))
     wrapper = LoopRetrieverMTEBWrapper(model, loop_idx=loop_idx, device=device, batch_size=args.batch_size)
-    tasks = mteb.get_tasks(tasks=[args.task_name])
+    tasks = mteb.get_tasks(tasks=[task_name])
+    assert_retrieval_tasks(tasks, task_name)
     evaluator = mteb.MTEB(tasks=tasks)
     mteb_output = artifact_dir / f"mteb_loop{loop_idx}"
     with torch.no_grad():
@@ -181,7 +220,7 @@ def evaluate_one_loop(args: argparse.Namespace, model, device: torch.device, loo
 
     return {
         "version": args.version,
-        "task": args.task_name,
+        "task": task_name,
         "loop_idx": loop_idx,
         "ndcg_at_10": parsed.get("ndcg_at_10"),
         "recall_at_10": parsed.get("recall_at_10"),
@@ -198,6 +237,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint_dir", required=True)
     parser.add_argument("--version", choices=version_names(), required=True)
     parser.add_argument("--task_name", default="SciFact")
+    parser.add_argument(
+        "--task_names",
+        nargs="*",
+        default=None,
+        help="One or more MTEB retrieval tasks. Accepts repeated values or comma-separated lists.",
+    )
     parser.add_argument("--loop_idx", type=int, default=None)
     parser.add_argument("--eval_all_loops", type=str2bool, default=False)
     parser.add_argument("--batch_size", type=int, default=32)
@@ -216,6 +261,7 @@ def main() -> None:
 
     model = load_model(args.checkpoint_dir, map_location="cpu").to(requested_device)
     model.eval()
+    task_names = split_task_names(args.task_names, args.task_name)
 
     if get_version_spec(args.version).is_standard_family:
         loop_indices = [1]
@@ -227,9 +273,10 @@ def main() -> None:
         loop_indices = [model.tmax]
 
     rows = []
-    for loop_idx in loop_indices:
-        print(f"Evaluating {args.version} loop {loop_idx} on {args.task_name}")
-        rows.append(evaluate_one_loop(args, model, requested_device, loop_idx))
+    for task_name in task_names:
+        for loop_idx in loop_indices:
+            print(f"Evaluating {args.version} loop {loop_idx} on {task_name}")
+            rows.append(evaluate_one_loop(args, model, requested_device, task_name, loop_idx))
 
     append_summary_rows(Path(args.output_dir), rows)
     print(f"Wrote summary rows to {Path(args.output_dir) / 'results_summary.csv'}")

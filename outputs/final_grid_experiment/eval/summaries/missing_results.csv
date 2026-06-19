@@ -1,0 +1,2 @@
+method,method_label,task,loop_idx,expected_checkpoint_dir,expected_raw_dir
+loop_final_recurrent_no_memory,final-only / no memory / recurrent hidden,TRECCOVID,10,outputs/final_grid_experiment/checkpoints/loop_final_recurrent_no_memory,outputs/final_grid_experiment/eval/raw/loop_final_recurrent_no_memory/TRECCOVID

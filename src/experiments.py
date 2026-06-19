@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -11,8 +11,8 @@ class VersionSpec:
     eval_all_loops: bool
     plot_kind: str
     color: str
-    use_memory_history: bool = True
-    memory_history_mode: str = "full"
+    loop_memory_mode: Optional[str] = None
+    loop_query_mode: Optional[str] = None
 
     @property
     def is_standard_family(self) -> bool:
@@ -40,85 +40,80 @@ VERSION_SPECS: Dict[str, VersionSpec] = {
         eval_all_loops=False,
         plot_kind="baseline",
         color="black",
-        use_memory_history=False,
-        memory_history_mode="none",
-    ),
-    "standard_more_steps": VersionSpec(
-        name="standard_more_steps",
-        family="standard",
-        loss_type="standard",
-        description="No-loop hard-negative retriever trained for more optimizer steps.",
-        eval_all_loops=False,
-        plot_kind="baseline",
-        color="#2ca02c",
-        use_memory_history=False,
-        memory_history_mode="none",
     ),
     "loop_final": VersionSpec(
         name="loop_final",
         family="loop",
         loss_type="final_loop",
-        description="Memory-token loop retriever supervised only at the final loop, using full memory history.",
+        description="Parameter-free memory loop retriever supervised only at the final loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#1f77b4",
-        memory_history_mode="full",
-    ),
-    "loop_final_last": VersionSpec(
-        name="loop_final_last",
-        family="loop",
-        loss_type="final_loop",
-        description="Loop retriever supervised only at the final loop, using only the previous loop state as memory.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#9467bd",
-        memory_history_mode="last",
-    ),
-    "loop_final_none": VersionSpec(
-        name="loop_final_none",
-        family="loop",
-        loss_type="final_loop",
-        description="Loop retriever supervised only at the final loop, without recurrent memory-state feedback.",
-        eval_all_loops=True,
-        plot_kind="curve",
-        color="#8c564b",
-        use_memory_history=False,
-        memory_history_mode="none",
     ),
     "loop_matryoshka": VersionSpec(
         name="loop_matryoshka",
         family="loop",
         loss_type="loopwise",
-        description="Memory-token loop retriever supervised at every loop, using full memory history.",
+        description="Parameter-free memory loop retriever supervised at every loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#d62728",
-        memory_history_mode="full",
     ),
-    "loop_matryoshka_last": VersionSpec(
-        name="loop_matryoshka_last",
+    "loop_final_recurrent_mean_pool": VersionSpec(
+        name="loop_final_recurrent_mean_pool",
+        family="loop",
+        loss_type="final_loop",
+        description="Mean-pool memory loop retriever with recurrent query hidden states supervised only at the final loop.",
+        eval_all_loops=True,
+        plot_kind="curve",
+        color="#2ca02c",
+        loop_memory_mode="mean_pool",
+        loop_query_mode="recurrent_hidden",
+    ),
+    "loop_matryoshka_recurrent_mean_pool": VersionSpec(
+        name="loop_matryoshka_recurrent_mean_pool",
         family="loop",
         loss_type="loopwise",
-        description="Loop retriever supervised at every loop, using only the previous loop state as memory.",
+        description="Mean-pool memory loop retriever with recurrent query hidden states supervised at every loop.",
+        eval_all_loops=True,
+        plot_kind="curve",
+        color="#9467bd",
+        loop_memory_mode="mean_pool",
+        loop_query_mode="recurrent_hidden",
+    ),
+    "loop_final_recurrent_no_memory": VersionSpec(
+        name="loop_final_recurrent_no_memory",
+        family="loop",
+        loss_type="final_loop",
+        description="No-memory recurrent query hidden-state retriever supervised only at the final loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#ff7f0e",
-        memory_history_mode="last",
+        loop_memory_mode="none",
+        loop_query_mode="recurrent_hidden",
     ),
-    "loop_matryoshka_none": VersionSpec(
-        name="loop_matryoshka_none",
+    "loop_matryoshka_recurrent_no_memory": VersionSpec(
+        name="loop_matryoshka_recurrent_no_memory",
         family="loop",
         loss_type="loopwise",
-        description="Loop retriever supervised at every loop, without recurrent memory-state feedback.",
+        description="No-memory recurrent query hidden-state retriever supervised at every loop.",
         eval_all_loops=True,
         plot_kind="curve",
         color="#17becf",
-        use_memory_history=False,
-        memory_history_mode="none",
+        loop_memory_mode="none",
+        loop_query_mode="recurrent_hidden",
     ),
 }
 
-MAIN_VERSIONS: Sequence[str] = ("standard", "loop_final", "loop_matryoshka")
+MAIN_VERSIONS: Sequence[str] = (
+    "standard",
+    "loop_final",
+    "loop_matryoshka",
+    "loop_final_recurrent_mean_pool",
+    "loop_matryoshka_recurrent_mean_pool",
+    "loop_final_recurrent_no_memory",
+    "loop_matryoshka_recurrent_no_memory",
+)
 
 
 def get_version_spec(version: str) -> VersionSpec:
