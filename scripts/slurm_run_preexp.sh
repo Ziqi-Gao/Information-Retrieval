@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+if [ "${ALLOW_LEGACY_DIRECT_SBATCH:-0}" != "1" ]; then
+  echo "Refusing direct legacy sbatch submission." >&2
+  echo "Use scripts/goal_submit_batch.py with a validated manifest for autonomous batches." >&2
+  echo "For deliberate legacy operation, set ALLOW_LEGACY_DIRECT_SBATCH=1." >&2
+  exit 1
+fi
+
 CONFIG=${CONFIG:-configs/preexp.yaml}
 OUTPUT_BASE=${OUTPUT_BASE:-outputs/preexp}
 EVAL_OUTPUT_BASE=${EVAL_OUTPUT_BASE:-outputs/preexp_eval}
@@ -22,7 +29,7 @@ submit_train() {
   local run_name="$2"
   local loop_memory_mode="${3:-}"
   local loop_query_mode="${4:-}"
-  local export_vars="ALL,VERSION=${version},CONFIG=${CONFIG},OUTPUT_BASE=${OUTPUT_BASE},RUN_NAME=${run_name}"
+  local export_vars="NONE,VERSION=${version},CONFIG=${CONFIG},OUTPUT_BASE=${OUTPUT_BASE},RUN_NAME=${run_name}"
 
   if [ -n "${loop_memory_mode}" ]; then
     export_vars="${export_vars},LOOP_MEMORY_MODE=${loop_memory_mode}"
@@ -44,7 +51,7 @@ submit_eval() {
 
   sbatch ${SBATCH_ARGS} --parsable \
     --dependency=afterok:${train_jid} \
-    --export=ALL,VERSION=${version},CHECKPOINT_DIR=${checkpoint_dir},OUTPUT_DIR=${output_dir},EVAL_ALL_LOOPS=${eval_all_loops} \
+    --export=NONE,VERSION=${version},CHECKPOINT_DIR=${checkpoint_dir},OUTPUT_DIR=${output_dir},EVAL_ALL_LOOPS=${eval_all_loops},TASK_NAMES=${TASK_NAMES} \
     scripts/slurm_eval.sbatch
 }
 

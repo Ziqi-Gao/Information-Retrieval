@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+if [ -z "${SLURM_JOB_ID:-}" ] && [ "${ALLOW_LOGIN_NODE_TRAINING:-0}" != "1" ]; then
+  echo "Refusing to run pre-experiment training directly on the login node." >&2
+  echo "Use scripts/goal_submit_batch.py for autonomous Slurm batches." >&2
+  echo "For a deliberate local smoke/debug run, set ALLOW_LOGIN_NODE_TRAINING=1." >&2
+  exit 1
+fi
+
 PYTHON_BIN=${PYTHON_BIN:-python}
 TASK_NAME=${TASK_NAME:-SciFact}
 TASK_NAMES=${TASK_NAMES:-${TASK_NAME}}

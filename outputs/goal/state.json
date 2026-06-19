@@ -1,0 +1,56 @@
+{
+  "baseline": {
+    "manifest": null,
+    "path": null,
+    "reason": "baseline summary or manifest is missing",
+    "sha256": null,
+    "status": "missing"
+  },
+  "best_candidate": null,
+  "budget": {
+    "max_concurrent_gpu_jobs": 4,
+    "max_gpu_hours_per_batch": 24.0
+  },
+  "current_batch": {
+    "batch_id": "batch_001",
+    "dry_run": true,
+    "manifest": "experiments/batches/batch_template.yaml",
+    "plan": "outputs/goal/runs/batch_001/submission_plan.json"
+  },
+  "final_tasks": [
+    "SciFact",
+    "NFCorpus",
+    "SCIDOCS",
+    "FiQA2018",
+    "ArguAna",
+    "Touche2020",
+    "TRECCOVID"
+  ],
+  "last_scoreboard": null,
+  "next_required_action": "Freeze or validate baseline before real autonomous experiments.",
+  "open_jobs": [
+    {
+      "batch_id": "batch_001",
+      "job_id": null,
+      "run_id": "dryrun_standard_check",
+      "status": "dry_run",
+      "type": "train"
+    },
+    {
+      "batch_id": "batch_001",
+      "depends_on": null,
+      "job_id": null,
+      "run_id": "dryrun_standard_check",
+      "status": "dry_run",
+      "type": "eval"
+    }
+  ],
+  "phase": "DRY_RUN_SUBMIT",
+  "primary_metric": "ndcg_at_10",
+  "repo": {
+    "branch": "codex-bert-only-loop-memory",
+    "commit": "6ef02a01075f43b57ca5eecdb6697cb759c47755",
+    "dirty": true
+  },
+  "win_margin": 0.001
+}

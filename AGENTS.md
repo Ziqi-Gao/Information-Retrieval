@@ -7,14 +7,114 @@ This file is for future Codex sessions working in this repository. Read it befor
 - This repository maintains the Loop-Wise Matryoshka Retrieval experiments.
 - Keep the public repository reproducible with code, configs, scripts, docs, and dependency declarations only.
 - Generated artifacts are local-only unless the user explicitly asks otherwise.
+- The later research goal is to develop a retrieval pipeline that robustly beats the frozen `standard` baseline on every final retrieval dataset by NDCG@10.
+- The current preparation scope is infrastructure only: safe batch design, Slurm orchestration, result collection, baseline comparison, and handoff documentation.
+- Do not implement new retrieval models, new scoring semantics, or new final-claim logic during preparation work.
+
+## Protocol Metric
+
+- Primary metric: `ndcg_at_10`.
+- Default win margin: `0.001`.
+- Final tasks, in protocol order:
+  - `SciFact`
+  - `NFCorpus`
+  - `SCIDOCS`
+  - `FiQA2018`
+  - `ArguAna`
+  - `Touche2020`
+  - `TRECCOVID`
+- A candidate wins only if every final task has `candidate_ndcg_at_10 >= frozen_standard_ndcg_at_10 + margin`.
+- Missing, failed, timed-out, NaN, duplicate, or partial-task results are failures.
+- Dev subsets are allowed for iteration, but final claims require full final-task coverage against the frozen baseline.
+
+## Required Workflow
+
+Future autonomous sessions must follow this sequence:
+
+```text
+BOOTSTRAP
+-> AUDIT_REPO
+-> INIT_GOAL_STATE
+-> FREEZE_OR_VALIDATE_BASELINE
+-> DESIGN_BATCH
+-> VALIDATE_BATCH
+-> DRY_RUN_SUBMIT
+-> SUBMIT_BATCH
+-> WAIT_FOR_JOBS
+-> COLLECT_RESULTS
+-> SCORE_RESULTS
+-> DECIDE_NEXT
+-> FINAL_VALIDATE
+-> REPORT
+```
+
+For preparation-only tasks, stop before real large-scale `SUBMIT_BATCH`.
+
+## Experiment Logic
+
+- Register experiment variants in `src/experiments.py` first. Training, evaluation, plotting, README, and scripts should derive from those version names.
+- Keep version naming consistent across `src/experiments.py`, `src/train.py`, scripts, docs, and plots.
+- Evaluation datasets must be MTEB text retrieval tasks. Keep `task_name` for single-task compatibility and use `task_names` for multi-task evaluation.
+- Current experiments should update only ModernBERT encoder parameters. Do not add trainable projection heads, memory projections, memory-state embeddings, gates, or learned scaling unless the user explicitly asks for that ablation.
+- Current parameter-free loop-memory modes mean:
+  - `first_token`: prepend the previous loop's first query-token hidden state to the next loop.
+  - `mean_pool`: prepend the previous loop's mean-pooled query-token hidden state to the next loop.
+  - `token_concat`: prepend all previous-loop query-token hidden states to the next loop.
+  - `none`: prepend no memory token; pass only the selected query-token inputs.
+- Current loop-loss modes mean:
+  - `loop_final`: train only from the final loop output.
+  - `loop_matryoshka`: train from loopwise losses across loop depths.
+  - `standard`: single-pass no-loop baseline.
+- Do not reintroduce the old ambiguous `*_no_history` meaning or old `full`/`last`/`none` memory-history variants.
+
+## Baseline Rules
+
+- Do not compare against a moving or re-trained baseline.
+- Freeze baseline summaries only through `scripts/goal_freeze_baseline.py`.
+- Frozen baseline files belong under `outputs/baselines/standard_frozen/`.
+- Do not overwrite `outputs/baselines/**` unless the user explicitly requests it and the command uses the script's `--force`.
+- Do not claim progress until `outputs/baselines/standard_frozen/results_summary.csv` and `baseline_manifest.json` exist and validate.
+
+## Slurm Rules
+
+- Never run full training directly on the login node.
+- Never call `sbatch` manually for goal batches after this framework exists.
+- Slurm submission must go through `scripts/goal_submit_batch.py`.
+- Slurm status must go through `scripts/goal_status.py`.
+- Result collection must go through `scripts/goal_collect.py`.
+- Scoring must go through `scripts/goal_scoreboard.py`.
+- Legacy direct Slurm wrappers refuse to run unless `ALLOW_LEGACY_DIRECT_SBATCH=1` is explicitly set. They are outside the autonomous goal workflow.
+- Local training wrappers and `src.run_all` refuse login-node training unless running inside Slurm or `ALLOW_LOGIN_NODE_TRAINING=1` is explicitly set for a deliberate small debug run.
+- Use `scripts/slurm_env.sh` for batch jobs. Keep scheduler-specific options in environment variables such as `SBATCH_ARGS`, `CONDA_ENV`, `DEFAULT_CONDA_ENV`, and `PYTHON_BIN`.
+- Slurm jobs should inherit only safe experiment/runtime variables. Never export API keys, SSH keys, cloud credentials, or token variables into jobs.
+- Respect manifest budget controls: `max_concurrent_gpu_jobs`, `max_gpu_hours_estimate`, and `allow_submit`.
+
+## State Management
+
+- Goal state lives at `outputs/goal/state.json`.
+- Batch manifests live under `experiments/batches/`.
+- Submitted batch plans live under `outputs/goal/runs/<batch_id>/`.
+- Evaluation outputs should use `outputs/goal/eval/<batch_id>/<run_id>/`.
+- Do not overwrite existing run directories unless using an explicit resume path.
+- Update state after initialization, dry-run submission, real submission, status updates, and scoreboards.
+- If resuming after queue delays, read `outputs/goal/state.json` and the batch `submission_plan.json` before acting.
+
+## Result Interpretation
+
+- `pending`, `running`, and `unknown` jobs are not results.
+- `failed_train`, `failed_eval`, `missing_result`, `invalid_metric`, `partial_tasks`, and `timeout` are failures.
+- Do not interpret missing rows as zero or as ties.
+- Do not modify `src/eval_mteb.py` metric extraction to make results look better.
+- Do not select the best loop per final task after seeing final-task results unless the manifest explicitly marks the batch as exploratory and excludes it from final claims.
+- Loop-depth candidates should be compared as pre-defined candidate IDs, not per-task cherry-picks.
 
 ## Privacy And Repository Hygiene
 
-- Never commit personal paths, usernames, cluster account names, scheduler partition names, absolute home paths, API keys, tokens, or machine-specific environment paths.
+- Never commit personal paths, usernames, cluster account names, scheduler partition names, absolute home paths, API keys, tokens, SSH keys, or machine-specific environment paths.
 - This restriction applies to tracked, committed, or pushed repository content.
-- Local untracked or ignored files may contain machine-specific paths, runtime logs, cache paths, and environment details, but they must remain untracked.
+- Local untracked or ignored files may contain machine-specific runtime details, but they must remain untracked.
 - Use relative paths in README, docs, scripts, and configs.
-- Keep site-specific Slurm choices outside the repo through environment variables such as `SBATCH_ARGS`, `CONDA_ENV`, and `PYTHON_BIN`.
+- Keep site-specific Slurm choices outside the repo through environment variables.
 - Do not commit these generated/local directories:
   - `outputs/`
   - `.hf_cache/`
@@ -31,66 +131,40 @@ git ls-files -ci --exclude-standard
 git grep -n -I -E '<local-user>|<cluster-project>|<absolute-path-prefix>|SBATCH --account|SBATCH --partition|HF_TOKEN|WANDB_API_KEY'
 ```
 
-Replace the placeholder patterns with the actual local username, cluster project/account names, and absolute path prefixes before running the check locally. The final `git grep` should return no repository secrets or personal machine paths in tracked content. Local runtime files may contain machine-specific information, but they must remain ignored or untracked.
-
-## Experiment Logic
-
-- Register experiment variants in `src/experiments.py` first. Training, evaluation, plotting, README, and scripts should derive from those version names.
-- Keep version naming consistent across `src/experiments.py`, `src/train.py`, scripts, docs, and plots.
-- Evaluation datasets must be MTEB text retrieval tasks. Keep `task_name` for single-task compatibility and use `task_names` for multi-task evaluation.
-- Current experiments should update only ModernBERT encoder parameters. Do not add trainable projection heads, memory projections, memory-state embeddings, gates, or learned scaling unless the user explicitly asks for that ablation.
-- Current parameter-free loop-memory modes mean:
-  - `first_token`: prepend the previous loop's first query-token hidden state to the next loop.
-  - `mean_pool`: prepend the previous loop's mean-pooled query-token hidden state to the next loop.
-  - `token_concat`: prepend all previous-loop query-token hidden states to the next loop.
-- Current loop-loss modes mean:
-  - `loop_final`: train only from the final loop output.
-  - `loop_matryoshka`: train from loopwise losses across loop depths.
-  - `standard`: single-pass no-loop baseline.
-- Do not reintroduce the old ambiguous `*_no_history` meaning or old `full`/`last`/`none` memory-history variants.
+Replace placeholder patterns with real local identifiers before running the check locally. The final `git grep` should return no repository secrets or personal machine paths in tracked content.
 
 ## Output And Plot Boundaries
 
-- `outputs/` is ignored and may contain checkpoints, eval JSON, summaries, and plots.
-- Do not delete or overwrite `outputs/plots/` unless the user explicitly asks. The user previously asked to preserve plot files.
-- When removing stale experiment outputs, delete only the specific method directories that are obsolete or explicitly requested.
+- `outputs/` is ignored and may contain checkpoints, eval JSON, summaries, plots, and goal-control state.
+- Do not delete or overwrite `outputs/plots/`, `outputs/final_grid_experiment/`, or any raw MTEB result files unless the user explicitly asks.
+- When removing stale experiment outputs, delete only specific method directories that are obsolete or explicitly requested.
 - Plotting should read combined summaries and write back under `outputs/plots/` by default.
 - Multi-task evaluation must keep raw/parsed MTEB outputs in task-specific directories and plot each task separately. Do not mix different `task` values into one loop-depth plot.
 
-## Slurm And Local Runtime
+## Forbidden Actions
 
-- Use `scripts/slurm_env.sh` for batch jobs. It should remain free of hardcoded local paths.
-- Slurm wrapper scripts should accept scheduler-specific options through `SBATCH_ARGS`.
-- Slurm evaluation should default to the recommended retrieval-task set (`SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID`) and support overrides with `TASK_NAME=<single-task>`, `TASK_NAMES=<comma-separated-task-list>`, or `DEFAULT_EVAL_TASKS=<comma-separated-task-list>`. `TASK_NAMES` takes precedence.
-- If `CONDA_ENV` is unset, scripts should still work with `PYTHON_BIN` or the shell's default `python`.
-- Hugging Face and Matplotlib caches should default to ignored relative directories such as `.hf_cache/` and `.mplconfig/`.
+- Do not push to GitHub or open PRs unless explicitly asked.
+- Do not run expensive training or large Slurm batches during preparation.
+- Do not delete `outputs/**`, `slurm_logs/**`, checkpoints, or MTEB raw result files.
+- Do not read `.env`, private keys, token caches, or credential files unless explicitly necessary and approved.
+- Do not fabricate, infer, or backfill results.
+- Do not make final-task claims from dev-only tasks.
+- Final manifests must predeclare candidate loop indices or candidate IDs before evaluation.
 
 ## Validation Checklist
 
-Run relevant checks before saying the project is healthy:
+Run relevant cheap checks before saying the project is healthy:
 
 ```bash
-python -m compileall -q src
+python -m compileall -q src scripts
 bash -n scripts/*.sh scripts/*.sbatch
-python -m src.train --help
-python -m src.eval_mteb --help
-python -m src.plot_results --help
+python scripts/goal_validate_manifest.py experiments/batches/batch_template.yaml
+python scripts/goal_submit_batch.py experiments/batches/batch_template.yaml --dry-run
+python scripts/goal_scoreboard.py --self-test
+python scripts/goal_preflight.py --manifest experiments/batches/batch_template.yaml
 ```
 
 For model or experiment-registry changes, also verify that each version resolves to the expected loss mode and that training exposes only `encoder.*` trainable parameters.
-
-For broader changes, prefer a smoke run:
-
-```bash
-bash scripts/run_smoke.sh
-```
-
-## Git Workflow
-
-- Keep commits focused on reproducible project files.
-- Do not push generated outputs, caches, or large checkpoints.
-- Do not rewrite remote history unless removing sensitive or clearly mistaken pushed content, and explain why.
-- Before pushing, confirm `git status` is clean except for intentional ignored local artifacts.
 
 ## Collaboration Notes
 
