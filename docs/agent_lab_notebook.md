@@ -214,3 +214,31 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - no completed Slurm-native postprocess batch is available to analyze
 - Latest submitted batch remains `batch_002_dev`; `scripts/goal_status.py --batch-id batch_002_dev --json` shows its four eval jobs completed, but that batch predates Slurm-native postprocess submission and has no postprocess job.
 - Stop condition: no new batch was created or submitted. Next action remains review of the `batch_003_final` dry-run plan and explicit approval before any final validation submission.
+
+## 2026-06-20 Round 003 Final Validation Submission
+
+- User explicitly approved final validation for `batch_003_final`.
+- Guardrails before submission:
+  - Candidate rule was not changed: `fusion_scope=query_only`, `fusion_alpha=0.20`, `loop_idx=3`.
+  - Manifest remains `purpose: final` with all seven protocol final tasks.
+  - Final candidate is predeclared through `candidate_loop_indices: [3]`.
+  - Frozen baseline paths remain unchanged.
+  - No metric semantics were changed.
+- Manifest update:
+  - `experiments/batches/batch_003_final.yaml` changed only `budget.allow_submit` from `false` to `true`.
+- Validation:
+  - `scripts/goal_validate_manifest.py experiments/batches/batch_003_final.yaml` passed.
+  - `scripts/goal_submit_batch.py experiments/batches/batch_003_final.yaml --dry-run --submit-postprocess` passed.
+  - `scripts/goal_preflight.py --manifest experiments/batches/batch_003_final.yaml` passed.
+- Submission:
+  - Eval job was submitted through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job ID: `4958307`.
+  - Initial postprocess submit failed because the GPU partition rejected CPU-only postprocess jobs.
+  - Added a controlled `--submit-postprocess-only` repair path to `scripts/goal_submit_batch.py` so postprocess can be submitted through the project wrapper without repeating eval submission.
+  - Postprocess job was submitted through `scripts/goal_submit_batch.py --submit --submit-postprocess-only`.
+  - Postprocess job ID: `4958309`.
+  - Postprocess dependency: `afterany:4958307`.
+- Immediate queue state:
+  - eval `4958307`: `PENDING`
+  - postprocess `4958309`: `PENDING` with dependency
+- No final claim is made. Final validation can be interpreted only after the postprocess scoreboard exists and passes all seven final tasks by the `+0.001` margin.

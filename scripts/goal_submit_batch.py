@@ -93,6 +93,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Add one Slurm dependency job that collects and scores after all eval jobs reach terminal state.",
     )
+    parser.add_argument(
+        "--submit-postprocess-only",
+        action="store_true",
+        help="Submit only the Slurm dependency postprocess job for already-submitted eval jobs.",
+    )
+    parser.add_argument(
+        "--eval-job-id",
+        action="append",
+        default=[],
+        help="Existing eval job mapping for --submit-postprocess-only, formatted run_id=job_id.",
+    )
     return parser.parse_args()
 
 
@@ -127,8 +138,8 @@ def format_export(base: Dict[str, Any]) -> str:
     return ",".join(parts)
 
 
-def sbatch_args_from_env(excluded_options: Optional[Sequence[str]] = None) -> List[str]:
-    raw = os.environ.get("SBATCH_ARGS", "")
+def sbatch_args_from_env(excluded_options: Optional[Sequence[str]] = None, env_key: str = "SBATCH_ARGS") -> List[str]:
+    raw = os.environ.get(env_key, "")
     if not raw.strip():
         return []
     tokens = shlex.split(raw)
@@ -155,6 +166,20 @@ def sbatch_args_from_env(excluded_options: Optional[Sequence[str]] = None) -> Li
 
 def shell_join(command: Sequence[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in command)
+
+
+def parse_eval_job_ids(values: Sequence[str]) -> Dict[str, str]:
+    parsed: Dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise SystemExit("--eval-job-id must be formatted run_id=job_id")
+        run_id, job_id = value.split("=", 1)
+        run_id = run_id.strip()
+        job_id = job_id.strip()
+        if not run_id or not job_id:
+            raise SystemExit("--eval-job-id must include non-empty run_id and job_id")
+        parsed[run_id] = job_id
+    return parsed
 
 
 def run_sbatch(command: Sequence[str], dry_run: bool) -> Optional[str]:
@@ -355,7 +380,8 @@ def build_postprocess_command(plan: Dict[str, Any], exports: Dict[str, Any]) -> 
     if not eval_job_ids:
         raise SystemExit("Cannot build postprocess dependency without eval jobs.")
     dependency = "afterany:{}".format(":".join(eval_job_ids))
-    scheduler_args = sbatch_args_from_env(excluded_options=POSTPROCESS_EXCLUDED_SBATCH_ARGS)
+    postprocess_env_key = "POSTPROCESS_SBATCH_ARGS" if os.environ.get("POSTPROCESS_SBATCH_ARGS", "").strip() else "SBATCH_ARGS"
+    scheduler_args = sbatch_args_from_env(excluded_options=POSTPROCESS_EXCLUDED_SBATCH_ARGS, env_key=postprocess_env_key)
     command = ["sbatch", "--parsable"] + scheduler_args + [
         "--dependency={}".format(dependency),
         "--export={}".format(format_export(exports)),
@@ -437,9 +463,29 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_pat
     atomic_write_json(state_path, state)
 
 
+def apply_existing_eval_job_ids(plan: Dict[str, Any], eval_job_ids: Dict[str, str]) -> None:
+    missing = []
+    for job in plan["jobs"]:
+        run_id = job["run_id"]
+        job_id = eval_job_ids.get(run_id) or job.get("eval_job_id")
+        if not job_id:
+            missing.append(run_id)
+            continue
+        job["train_job_id"] = job.get("train_job_id")
+        job["eval_job_id"] = job_id
+        job["eval_command"] = job.get("eval_command") or list(job["eval_command_base"]) + [
+            "--export={}".format(job["eval_export"]),
+            "scripts/slurm_eval.sbatch",
+        ]
+    if missing:
+        raise SystemExit("Missing existing eval job IDs for postprocess-only submit: {}".format(", ".join(missing)))
+
+
 def main() -> None:
     args = parse_args()
     dry_run = not args.submit
+    if args.submit_postprocess_only and not args.submit_postprocess:
+        args.submit_postprocess = True
     manifest_path = Path(args.manifest)
     validation = validate_manifest(manifest_path)
     if not validation["valid"]:
@@ -455,28 +501,41 @@ def main() -> None:
         raise SystemExit("Refusing --submit without a frozen baseline.")
 
     plan = build_plan(manifest_path, manifest)
-    assert_output_dirs_available(plan["jobs"], args.resume, dry_run=dry_run)
+    assert_output_dirs_available(plan["jobs"], args.resume or args.submit_postprocess_only, dry_run=dry_run)
 
     batch_dir = ensure_dir(Path("outputs/goal/runs") / manifest["batch_id"])
     manifest_copy = batch_dir / ("batch_manifest.dry_run.yaml" if dry_run else "batch_manifest.submitted.yaml")
     plan_path = batch_dir / ("dry_run_plan.json" if dry_run else "submission_plan.json")
     write_yaml(manifest_copy, manifest)
 
-    for job in plan["jobs"]:
-        train_job_id = None
-        if not job.get("eval_only"):
-            train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
-        job["train_job_id"] = train_job_id
-        dependency_args: List[str] = []
-        if train_job_id:
-            dependency_args = ["--dependency=afterok:{}".format(train_job_id)]
-        eval_command = list(job["eval_command_base"]) + dependency_args + [
-            "--export={}".format(job["eval_export"]),
-            "scripts/slurm_eval.sbatch",
-        ]
-        job["eval_command"] = eval_command
-        eval_job_id = run_sbatch(eval_command, dry_run=dry_run)
-        job["eval_job_id"] = eval_job_id
+    if args.submit_postprocess_only:
+        existing_eval_job_ids = parse_eval_job_ids(args.eval_job_id)
+        if not existing_eval_job_ids:
+            submitted_plan = batch_dir / "submission_plan.json"
+            if submitted_plan.exists():
+                prior_plan = load_json(submitted_plan)
+                existing_eval_job_ids = {
+                    job["run_id"]: str(job["eval_job_id"])
+                    for job in prior_plan.get("jobs", [])
+                    if job.get("run_id") and job.get("eval_job_id")
+                }
+        apply_existing_eval_job_ids(plan, existing_eval_job_ids)
+    else:
+        for job in plan["jobs"]:
+            train_job_id = None
+            if not job.get("eval_only"):
+                train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
+            job["train_job_id"] = train_job_id
+            dependency_args: List[str] = []
+            if train_job_id:
+                dependency_args = ["--dependency=afterok:{}".format(train_job_id)]
+            eval_command = list(job["eval_command_base"]) + dependency_args + [
+                "--export={}".format(job["eval_export"]),
+                "scripts/slurm_eval.sbatch",
+            ]
+            job["eval_command"] = eval_command
+            eval_job_id = run_sbatch(eval_command, dry_run=dry_run)
+            job["eval_job_id"] = eval_job_id
 
     if args.submit_postprocess:
         if not dry_run:

@@ -155,6 +155,16 @@ The postprocess job uses `--export=NONE` plus a narrow allowlist for `BATCH_ID`,
 
 `AUTO_CODEX` defaults to `false`. If set to `true`, the postprocess job may try `codex exec` after deterministic scoring and uses `outputs/goal/runs/<batch_id>/.codex_resume_launched` as a sentinel. If Codex auth or the `codex` command is unavailable on compute nodes, deterministic collection/scoring still stands; resume manually from the scoreboard and state files.
 
+If eval submission succeeds but postprocess submission is rejected by the scheduler, do not resubmit eval. Use the project wrapper's postprocess-only repair path with the existing eval job id:
+
+```bash
+python scripts/goal_submit_batch.py experiments/batches/<batch>.yaml \
+  --submit --submit-postprocess-only \
+  --eval-job-id <run_id>=<eval_job_id>
+```
+
+Use scheduler options through `POSTPROCESS_SBATCH_ARGS` when the CPU postprocess job must use a different partition than GPU eval jobs.
+
 ## Resume After Queue Delays
 
 After a pause or queue delay:

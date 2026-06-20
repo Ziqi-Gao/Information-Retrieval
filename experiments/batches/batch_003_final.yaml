@@ -12,7 +12,7 @@ baseline:
 budget:
   max_concurrent_gpu_jobs: 1
   max_gpu_hours_estimate: 12
-  allow_submit: false
+  allow_submit: true
 
 tasks:
   dev:

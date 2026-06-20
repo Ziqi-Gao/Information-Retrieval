@@ -24,9 +24,11 @@
   },
   "current_batch": {
     "batch_id": "batch_003_final",
-    "dry_run": true,
+    "dry_run": false,
     "manifest": "experiments/batches/batch_003_final.yaml",
-    "plan": "outputs/goal/runs/batch_003_final/dry_run_plan.json"
+    "plan": "outputs/goal/runs/batch_003_final/submission_plan.json",
+    "postprocess": true,
+    "postprocess_job_id": "4958309"
   },
   "final_tasks": [
     "SciFact",
@@ -37,24 +39,12 @@
     "Touche2020",
     "TRECCOVID"
   ],
-  "last_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json",
-  "last_watcher": {
-    "batch_id": "batch_002_dev",
-    "path": "outputs/goal/runs/batch_002_dev/watcher_status.json",
-    "updated_at": "2026-06-20T02:47:51Z"
-  },
   "last_decision": {
     "batch_id": "batch_002_dev",
     "decided_at": "2026-06-20T02:56:12Z",
     "decision": "Promote the leading dev-only candidate to a final-validation dry-run plan; do not submit without explicit approval.",
     "next_manifest": "experiments/batches/batch_003_final.yaml",
     "next_plan": "outputs/goal/runs/batch_003_final/dry_run_plan.json"
-  },
-  "last_status_attempt": {
-    "attempted_at": "2026-06-20T03:11:37Z",
-    "command": "python scripts/goal_status.py --state outputs/goal/state.json --update-state",
-    "fallback_command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --update-state",
-    "result": "failed because current batch batch_003_final is dry-run only and has no outputs/goal/runs/batch_003_final/submission_plan.json"
   },
   "last_postprocess_check": {
     "checked_at": "2026-06-20T03:11:37Z",
@@ -65,22 +55,44 @@
     "postprocess_failed": false,
     "result": "No submitted batch with Slurm-native postprocess output was found. batch_002_dev eval jobs are completed but predate postprocess submission."
   },
-  "next_required_action": "Review outputs/goal/runs/batch_003_final/dry_run_plan.json; submit final validation only after explicit user approval and an allowed submit manifest.",
+  "last_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json",
+  "last_status_attempt": {
+    "attempted_at": "2026-06-20T03:31:00Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_003_final --update-state --json",
+    "result": "sandboxed status query returned unknown, while direct squeue showed eval pending and postprocess pending on dependency"
+  },
+  "last_watcher": {
+    "batch_id": "batch_002_dev",
+    "path": "outputs/goal/runs/batch_002_dev/watcher_status.json",
+    "updated_at": "2026-06-20T02:47:51Z"
+  },
+  "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
       "batch_id": "batch_003_final",
-      "depends_on": null,
-      "job_id": null,
+      "job_id": "4958307",
+      "raw_state": "PENDING",
       "run_id": "r003_final_query_loop_matryoshka_t3_a20",
-      "status": "dry_run",
+      "source": "squeue",
+      "status": "pending",
       "type": "eval"
+    },
+    {
+      "batch_id": "batch_003_final",
+      "job_id": "4958309",
+      "raw_state": "PENDING",
+      "run_id": "batch_003_final",
+      "source": "squeue",
+      "status": "pending",
+      "type": "postprocess"
     }
   ],
-  "phase": "DRY_RUN_SUBMIT",
+  "phase": "SUBMIT_BATCH",
+  "postprocess_job_id": "4958309",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "abdfa999967f079ba3a6a88fd7f9889bfc0c6781",
+    "commit": "e14520d76b473f01760e362038c746aa4600ec43",
     "dirty": true
   },
   "win_margin": 0.001
