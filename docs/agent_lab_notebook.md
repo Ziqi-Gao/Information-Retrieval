@@ -498,3 +498,37 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `r006_loop_matryoshka_token_concat_t7__loop7`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.03403`, mean delta `-0.02160`, tasks won/lost `0/7`, valid tasks `4/7`.
     - Dev deltas: `SciFact -0.03403`, `NFCorpus -0.01153`, `SCIDOCS -0.00831`, `FiQA2018 -0.03253`; three final-only tasks were not evaluated by design.
 - Decision: `main_goal_success=false`. The first-token memory variant showed a narrow positive dev signal on `SciFact` and `NFCorpus`, but it regressed on `SCIDOCS` and `FiQA2018`; token-concat regressed on all four dev tasks. Under the current guardrails, the already-supported standalone checkpoint/evaluation probes and the allowed parameter-free memory-mode training probes have not produced a valid standalone dev path to final validation without a new research method or protocol change, so no new batch was submitted.
+
+## 2026-06-20 Batch 007 Dev Standalone Exploration
+
+- Parent decision: after re-auditing the repo, continue with exactly one low-cost dev-only standalone batch rather than changing retrieval semantics or opening a final validation.
+- `batch_006_dev` was used only as dev evidence. No final-task deltas were used to tune this batch.
+- Created `experiments/batches/batch_007_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Predeclared candidates:
+  - `r007_first_token_t5`: eval-only scoring from the `batch_006_dev` first-token checkpoint at fixed `loop_idx=5`.
+  - `r007_first_token_t6`: eval-only scoring from the same checkpoint at fixed `loop_idx=6`.
+  - `r007_first_token_t8`: eval-only scoring from the same checkpoint at fixed `loop_idx=8`.
+  - `r007_first_token_t9`: eval-only scoring from the same checkpoint at fixed `loop_idx=9`.
+- Guardrails:
+  - Dev tasks only: `SciFact`, `NFCorpus`, `FiQA2018`, `SCIDOCS`.
+  - No training.
+  - No frozen-standard checkpoint, frozen-standard score, `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, weighted standard+loop concatenation, or standard score interpolation in candidate scoring.
+  - Candidate rule is global per run across all dev tasks.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_007_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_007_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_007_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job IDs:
+    - `r007_first_token_t5`: `5034376`
+    - `r007_first_token_t6`: `5034377`
+    - `r007_first_token_t8`: `5034378`
+    - `r007_first_token_t9`: `5034379`
+  - Postprocess job ID: `5034380`
+  - Postprocess dependency: `afterany:5034376:5034377:5034378:5034379`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_007_dev/scoreboard.json`.

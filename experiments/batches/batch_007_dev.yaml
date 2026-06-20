@@ -1,0 +1,149 @@
+batch_id: batch_007_dev
+description: "Dev-only standalone first-token loop-depth probes from the batch_006 checkpoint."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 16
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r007_first_token_t5
+    claim_track: standalone_main
+    hypothesis: "The first-token memory checkpoint may need a shallower fixed loop depth than loop 7 to reduce drift on the dev retrieval tasks."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint at one predeclared loop depth."
+    expected_effect: "Tests whether loop 5 keeps the positive first-token signal while reducing dev-task regressions."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use loop_idx=5 for every dev task from the batch_006 first-token checkpoint; do not use any frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "A shallower loop may lose the query refinement that helped SciFact and NFCorpus."
+      - "The first-token memory checkpoint may still regress on SCIDOCS or FiQA2018 as an independent scorer."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 5
+      candidate_loop_indices:
+        - 5
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing standalone checkpoint with one fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r007_first_token_t6
+    claim_track: standalone_main
+    hypothesis: "The first-token memory checkpoint may have a local optimum just before loop 7 on the dev retrieval tasks."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint at one predeclared loop depth."
+    expected_effect: "Checks the immediate shallower neighbor of the previous loop-7 probe with the same global rule across dev tasks."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use loop_idx=6 for every dev task from the batch_006 first-token checkpoint; do not use any frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Loop 6 may preserve the same mixed positive and negative dev behavior as loop 7."
+      - "The checkpoint may be insensitive to nearby loop-depth changes."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 6
+      candidate_loop_indices:
+        - 6
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing standalone checkpoint with one fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r007_first_token_t8
+    claim_track: standalone_main
+    hypothesis: "The first-token memory checkpoint may need one additional loop step beyond loop 7 to stabilize dev retrieval scores."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint at one predeclared loop depth."
+    expected_effect: "Checks the immediate deeper neighbor of the previous loop-7 probe with the same global rule across dev tasks."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use loop_idx=8 for every dev task from the batch_006 first-token checkpoint; do not use any frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Additional loop refinement may increase representation drift on FiQA2018 or SCIDOCS."
+      - "Loop 8 may not preserve the SciFact and NFCorpus gains seen at loop 7."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 8
+      candidate_loop_indices:
+        - 8
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing standalone checkpoint with one fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r007_first_token_t9
+    claim_track: standalone_main
+    hypothesis: "A deeper first-token loop depth may reveal whether the batch_006 checkpoint improves after the loop-7 dev probe."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint at one predeclared loop depth."
+    expected_effect: "Tests whether loop 9 improves the global dev-task tradeoff before considering any final validation path."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use loop_idx=9 for every dev task from the batch_006 first-token checkpoint; do not use any frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "The deeper loop may amplify the regressions observed in batch_006."
+      - "The first-token signal may be too task-specific to produce a global standalone dev candidate."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 9
+      candidate_loop_indices:
+        - 9
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing standalone checkpoint with one fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
