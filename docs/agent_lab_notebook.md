@@ -281,7 +281,6 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - eval `4958436`: `PENDING`
   - postprocess `4958437`: `PENDING` with dependency
 - No final claim is made. The repair batch must wait for Slurm-native postprocess and then be scored against all seven final tasks.
-
 ## 2026-06-20 Acceptance Policy Tightening
 
 - Protocol-only change; no retrieval method, model architecture, loss, evaluation metric semantics, experiment candidate, training, eval, Slurm submission, or GitHub push was performed.
