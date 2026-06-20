@@ -58,8 +58,8 @@
   "last_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json",
   "last_status_attempt": {
     "attempted_at": "2026-06-20T03:31:00Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_003_final --update-state --json",
-    "result": "sandboxed status query returned unknown, while direct squeue showed eval pending and postprocess pending on dependency"
+    "command": "sacct -j 4958307,4958309 --format=JobID,State,ExitCode,Elapsed -P",
+    "result": "eval job 4958307 failed quickly with exit 127:0; postprocess job 4958309 is pending and should still run because dependency is afterany"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -71,10 +71,10 @@
     {
       "batch_id": "batch_003_final",
       "job_id": "4958307",
-      "raw_state": "PENDING",
+      "raw_state": "FAILED",
       "run_id": "r003_final_query_loop_matryoshka_t3_a20",
-      "source": "squeue",
-      "status": "pending",
+      "source": "sacct",
+      "status": "failed",
       "type": "eval"
     },
     {

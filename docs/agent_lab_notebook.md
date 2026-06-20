@@ -241,4 +241,7 @@ This notebook records factual preparation steps for the autonomous retrieval goa
 - Immediate queue state:
   - eval `4958307`: `PENDING`
   - postprocess `4958309`: `PENDING` with dependency
+- Immediate historical status after submission:
+  - eval `4958307`: `FAILED`, exit `127:0`, elapsed `00:00:06`
+  - postprocess `4958309`: `PENDING`; because dependency is `afterany`, it should still run and record deterministic failure outputs
 - No final claim is made. Final validation can be interpreted only after the postprocess scoreboard exists and passes all seven final tasks by the `+0.001` margin.
