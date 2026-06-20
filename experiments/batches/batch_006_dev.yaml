@@ -1,0 +1,97 @@
+batch_id: batch_006_dev
+description: "Dev-only standalone training probes for non-mean-pool memory modes."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r006_loop_matryoshka_first_token_t7
+    claim_track: standalone_main
+    hypothesis: "A first-token memory loop may reduce mean-pool memory smoothing while keeping the existing loopwise hard-negative objective."
+    mechanism: "Train the registered first-token memory loopwise retriever, then evaluate one predeclared standalone loop depth on dev tasks."
+    expected_effect: "Tests whether an existing parameter-free memory mode can improve standalone query refinement without frozen-standard fusion."
+    version: loop_matryoshka_first_token
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token with configs/preexp.yaml and evaluate loop_idx=7 for every dev task; use no frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "First-token memory may be too narrow and lose retrieval-relevant query information."
+      - "The trained standalone scorer may still trail the frozen standard baseline on multiple dev tasks."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 7
+      candidate_loop_indices:
+        - 7
+    risk:
+      level: medium
+      reason: "Dev-only training of an existing registered memory mode; no model head, metric, baseline, final task, or scoring-policy change."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r006_loop_matryoshka_token_concat_t7
+    claim_track: standalone_main
+    hypothesis: "Token-concat memory may preserve more query-token evidence than mean-pool memory while using the same loopwise hard-negative objective."
+    mechanism: "Train the registered token-concat memory loopwise retriever, then evaluate one predeclared standalone loop depth on dev tasks."
+    expected_effect: "Checks whether richer parameter-free memory improves standalone dev retrieval without any frozen-standard scoring input."
+    version: loop_matryoshka_token_concat
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_token_concat with configs/preexp.yaml and evaluate loop_idx=7 for every dev task; use no frozen-standard checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Token-concat memory may add noisy context and degrade query representations."
+      - "The longer query-memory sequence may cost more compute without improving NDCG@10."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 7
+      candidate_loop_indices:
+        - 7
+    risk:
+      level: medium
+      reason: "Dev-only training of an existing registered memory mode; no model head, metric, baseline, final task, or scoring-policy change."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

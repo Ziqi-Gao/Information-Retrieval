@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_005_dev",
+    "batch_id": "batch_006_dev",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_005_dev.yaml",
-    "plan": "outputs/goal/runs/batch_005_dev/submission_plan.json",
+    "manifest": "experiments/batches/batch_006_dev.yaml",
+    "plan": "outputs/goal/runs/batch_006_dev/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "4989176"
+    "postprocess_job_id": "4991230"
   },
   "final_tasks": [
     "SciFact",
@@ -40,11 +40,29 @@
     "TRECCOVID"
   ],
   "last_decision": {
+    "batch_id": "batch_006_dev",
+    "decided_at": "2026-06-20T18:07:16Z",
+    "decision": "Do not claim goal success from batch_005_dev. Its standalone_main dev candidates were dev-only and failed the diagnostic and research-grade thresholds; submit one next dev-only standalone batch training already-supported first_token and token_concat loopwise memory variants.",
+    "next_manifest": "experiments/batches/batch_006_dev.yaml",
+    "next_plan": "outputs/goal/runs/batch_006_dev/submission_plan.json"
+  },
+  "last_dev_result": {
     "batch_id": "batch_005_dev",
-    "decided_at": "2026-06-20T17:27:13Z",
-    "decision": "Do not claim goal success from batch_004_dev. Its standalone_main dev candidates were dev-only and failed the diagnostic and research-grade thresholds; submit one next dev-only standalone batch using existing final-loop and no-memory checkpoints.",
-    "next_manifest": "experiments/batches/batch_005_dev.yaml",
-    "next_plan": "outputs/goal/runs/batch_005_dev/submission_plan.json"
+    "best_candidate_id": "r005_standalone_loop_final_t10__loop10",
+    "best_mean_delta": -0.0030625000000000097,
+    "best_min_delta": -0.005980000000000013,
+    "candidate_track": "standalone_main",
+    "evaluated_at": "2026-06-20T17:59:53Z",
+    "fusion_diagnostic_pass": false,
+    "main_goal_success": false,
+    "minimal_positive_signal": false,
+    "publishable_score_candidate": false,
+    "purpose": "dev",
+    "research_grade_threshold_pass": false,
+    "source_scoreboard": "outputs/goal/runs/batch_005_dev/scoreboard.json",
+    "tasks_lost": 7,
+    "tasks_valid": 4,
+    "tasks_won": 0
   },
   "last_final_validation": {
     "batch_id": "batch_003_final_repair",
@@ -64,38 +82,20 @@
     "tasks_valid": 7,
     "tasks_won": 5
   },
-  "last_dev_result": {
-    "batch_id": "batch_004_dev",
-    "best_candidate_id": "r004_standalone_loop_matryoshka_t3__loop3",
-    "best_mean_delta": -0.002527500000000009,
-    "best_min_delta": -0.007319999999999993,
-    "candidate_track": "standalone_main",
-    "evaluated_at": "2026-06-20T05:48:37Z",
-    "fusion_diagnostic_pass": false,
-    "main_goal_success": false,
-    "minimal_positive_signal": false,
-    "publishable_score_candidate": false,
-    "purpose": "dev",
-    "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_004_dev/scoreboard.json",
-    "tasks_lost": 6,
-    "tasks_valid": 4,
-    "tasks_won": 1
-  },
   "last_postprocess_check": {
-    "checked_at": "2026-06-20T17:27:13Z",
-    "latest_batch": "batch_004_dev",
+    "checked_at": "2026-06-20T18:07:16Z",
+    "latest_batch": "batch_005_dev",
     "latest_batch_status": "postprocess_completed",
-    "latest_submitted_batch": "batch_004_dev",
+    "latest_submitted_batch": "batch_005_dev",
     "postprocess_done": true,
     "postprocess_failed": false,
-    "result": "Slurm-native postprocess completed and wrote collected_results.csv plus scoreboard.json. Batch_004_dev was dev-only standalone_main exploration; it cannot trigger main_goal_success and its candidates failed the diagnostic and research-grade thresholds."
+    "result": "Slurm-native postprocess completed and wrote collected_results.csv plus scoreboard.json. Batch_005_dev was dev-only standalone_main exploration; it cannot trigger main_goal_success and its candidates failed the diagnostic and research-grade thresholds."
   },
-  "last_scoreboard": "outputs/goal/runs/batch_004_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_005_dev/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-20T17:20:00Z",
-    "command": "scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_004_dev --update-state",
-    "result": "Local status refresh hung in Slurm status querying and was terminated. postprocess_done.json and scoreboard.json were used as terminal evidence."
+    "attempted_at": "2026-06-20T18:01:00Z",
+    "command": "scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_005_dev --update-state",
+    "result": "Local status refresh hung in Slurm status querying. postprocess_done.json and scoreboard.json were used as terminal evidence."
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -105,52 +105,50 @@
   "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_005_dev",
-      "depends_on": null,
-      "job_id": "4989172",
-      "run_id": "r005_standalone_loop_final_t10",
+      "batch_id": "batch_006_dev",
+      "job_id": "4991224",
+      "run_id": "r006_loop_matryoshka_first_token_t7",
+      "status": "submitted",
+      "type": "train"
+    },
+    {
+      "batch_id": "batch_006_dev",
+      "depends_on": "4991224",
+      "job_id": "4991226",
+      "run_id": "r006_loop_matryoshka_first_token_t7",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_005_dev",
-      "depends_on": null,
-      "job_id": "4989173",
-      "run_id": "r005_standalone_loop_final_recurrent_t10",
+      "batch_id": "batch_006_dev",
+      "job_id": "4991227",
+      "run_id": "r006_loop_matryoshka_token_concat_t7",
+      "status": "submitted",
+      "type": "train"
+    },
+    {
+      "batch_id": "batch_006_dev",
+      "depends_on": "4991227",
+      "job_id": "4991228",
+      "run_id": "r006_loop_matryoshka_token_concat_t7",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_005_dev",
-      "depends_on": null,
-      "job_id": "4989174",
-      "run_id": "r005_standalone_loop_final_recurrent_no_memory_t10",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_005_dev",
-      "depends_on": null,
-      "job_id": "4989175",
-      "run_id": "r005_standalone_matryoshka_recurrent_no_memory_t3",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_005_dev",
-      "depends_on": "afterany:4989172:4989173:4989174:4989175",
-      "job_id": "4989176",
-      "run_id": "batch_005_dev",
+      "batch_id": "batch_006_dev",
+      "depends_on": "afterany:4991226:4991228",
+      "job_id": "4991230",
+      "run_id": "batch_006_dev",
       "status": "submitted",
       "type": "postprocess"
     }
   ],
   "phase": "SUBMIT_BATCH",
-  "postprocess_job_id": "4989176",
+  "postprocess_job_id": "4991230",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "5802603c55445faf10b06d00db1991056a86d87c",
+    "commit": "79fdee0b53467e54ea8538ddf1e1b356867e5f76",
     "dirty": true
   },
   "win_margin": 0.001

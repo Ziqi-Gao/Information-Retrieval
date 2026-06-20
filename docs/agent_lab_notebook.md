@@ -426,3 +426,57 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `4989176`
   - Postprocess dependency: `afterany:4989172:4989173:4989174:4989175`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_005_dev/scoreboard.json`.
+
+## 2026-06-20 Batch 005 Dev Standalone Result
+
+- `batch_005_dev` completed Slurm-native postprocess:
+  - eval jobs: `4989172`, `4989173`, `4989174`, `4989175`
+  - postprocess job: `4989176`
+  - marker: `outputs/goal/runs/batch_005_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_005_dev/scoreboard.json`
+- A local `goal_status.py --batch-id batch_005_dev --update-state` refresh attempt hung in Slurm status querying. The postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; all candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r005_standalone_loop_final_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.00598`, mean delta `-0.00306`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.00560`, `NFCorpus -0.00598`, `SCIDOCS -0.00130`, `FiQA2018 +0.00063`; `ArguAna`, `Touche2020`, and `TRECCOVID` were not evaluated by design.
+  - `r005_standalone_matryoshka_recurrent_no_memory_t3__loop3`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.39494`, mean delta `-0.21950`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.39494`, `NFCorpus -0.15812`, `SCIDOCS -0.11502`, `FiQA2018 -0.20991`; three final-only tasks were not evaluated by design.
+  - `r005_standalone_loop_final_recurrent_no_memory_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.53827`, mean delta `-0.29136`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.53827`, `NFCorpus -0.23201`, `SCIDOCS -0.13661`, `FiQA2018 -0.25855`; three final-only tasks were not evaluated by design.
+  - `r005_standalone_loop_final_recurrent_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.53932`, mean delta `-0.29072`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.53932`, `NFCorpus -0.22870`, `SCIDOCS -0.13630`, `FiQA2018 -0.25855`; three final-only tasks were not evaluated by design.
+- Decision: `main_goal_success=false`. Existing final-loop and recurrent no-memory standalone probes did not show a viable dev signal.
+
+## 2026-06-20 Batch 006 Dev Standalone Exploration
+
+- Parent decision: continue with exactly one dev-only standalone batch by training two already-supported, newly registered memory-mode variants rather than changing metric semantics or using frozen-standard fusion.
+- Dev-only evidence used for the next direction:
+  - Existing standalone checkpoint summaries on the four dev tasks showed all evaluated mean-pool/recurrent variants below the frozen standard on average.
+  - The fixed evaluation loop `7` was chosen from dev-only historical loopwise mean-pool summary as the best global standalone loop depth on the dev tasks; no final-task deltas were used for this choice.
+- Code/config updates:
+  - Registered `loop_matryoshka_first_token` in `src/experiments.py`.
+  - Registered `loop_matryoshka_token_concat` in `src/experiments.py`.
+  - Created `experiments/batches/batch_006_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Predeclared candidates:
+  - `r006_loop_matryoshka_first_token_t7`: train `loop_matryoshka_first_token`, evaluate fixed `loop_idx=7` on all dev tasks.
+  - `r006_loop_matryoshka_token_concat_t7`: train `loop_matryoshka_token_concat`, evaluate fixed `loop_idx=7` on all dev tasks.
+- Guardrails:
+  - Existing loop-memory modes only; no projection heads, gates, learned scaling, metric change, baseline change, final-task set change, or frozen-standard scoring input.
+  - Candidate rule is global per run across all dev tasks.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_006_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_006_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_006_dev.yaml` passed.
+  - A scheduler-argument dry-run with `SBATCH_ARGS='--account=p32737 --partition=gengpu'` and `POSTPROCESS_SBATCH_ARGS='--account=p32737 --partition=short'` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Train/eval job IDs:
+    - `r006_loop_matryoshka_first_token_t7`: train `4991224`, eval `4991226`
+    - `r006_loop_matryoshka_token_concat_t7`: train `4991227`, eval `4991228`
+  - Postprocess job ID: `4991230`
+  - Postprocess dependency: `afterany:4991226:4991228`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_006_dev/scoreboard.json`.
