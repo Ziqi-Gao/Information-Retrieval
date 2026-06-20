@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_003_final",
+    "batch_id": "batch_003_final_repair",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_003_final.yaml",
-    "plan": "outputs/goal/runs/batch_003_final/submission_plan.json",
+    "manifest": "experiments/batches/batch_003_final_repair.yaml",
+    "plan": "outputs/goal/runs/batch_003_final_repair/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "4958309"
+    "postprocess_job_id": "4958437"
   },
   "final_tasks": [
     "SciFact",
@@ -40,11 +40,11 @@
     "TRECCOVID"
   ],
   "last_decision": {
-    "batch_id": "batch_002_dev",
-    "decided_at": "2026-06-20T02:56:12Z",
-    "decision": "Promote the leading dev-only candidate to a final-validation dry-run plan; do not submit without explicit approval.",
-    "next_manifest": "experiments/batches/batch_003_final.yaml",
-    "next_plan": "outputs/goal/runs/batch_003_final/dry_run_plan.json"
+    "batch_id": "batch_003_final",
+    "decided_at": "2026-06-20T03:44:34Z",
+    "decision": "Repair failed final validation infrastructure without changing the pre-registered candidate rule.",
+    "next_manifest": "experiments/batches/batch_003_final_repair.yaml",
+    "next_plan": "outputs/goal/runs/batch_003_final_repair/submission_plan.json"
   },
   "last_postprocess_check": {
     "checked_at": "2026-06-20T03:11:37Z",
@@ -57,9 +57,9 @@
   },
   "last_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-20T03:31:00Z",
-    "command": "sacct -j 4958307,4958309 --format=JobID,State,ExitCode,Elapsed -P",
-    "result": "eval job 4958307 failed quickly with exit 127:0; postprocess job 4958309 is pending and should still run because dependency is afterany"
+    "attempted_at": "2026-06-20T03:44:34Z",
+    "command": "squeue -j 4958436,4958437 -o '%i|%T|%M|%R'",
+    "result": "repair eval job 4958436 is pending; repair postprocess job 4958437 is pending on dependency"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -69,30 +69,32 @@
   "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_003_final",
-      "job_id": "4958307",
-      "raw_state": "FAILED",
+      "batch_id": "batch_003_final_repair",
+      "depends_on": null,
+      "job_id": "4958436",
+      "raw_state": "PENDING",
       "run_id": "r003_final_query_loop_matryoshka_t3_a20",
-      "source": "sacct",
-      "status": "failed",
+      "source": "squeue",
+      "status": "pending",
       "type": "eval"
     },
     {
-      "batch_id": "batch_003_final",
-      "job_id": "4958309",
+      "batch_id": "batch_003_final_repair",
+      "depends_on": "afterany:4958436",
+      "job_id": "4958437",
       "raw_state": "PENDING",
-      "run_id": "batch_003_final",
+      "run_id": "batch_003_final_repair",
       "source": "squeue",
       "status": "pending",
       "type": "postprocess"
     }
   ],
   "phase": "SUBMIT_BATCH",
-  "postprocess_job_id": "4958309",
+  "postprocess_job_id": "4958437",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "e14520d76b473f01760e362038c746aa4600ec43",
+    "commit": "6426fc6b58f62ab4488c3d4f0a916c5b6932b3be",
     "dirty": true
   },
   "win_margin": 0.001

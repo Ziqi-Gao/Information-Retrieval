@@ -245,3 +245,39 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - eval `4958307`: `FAILED`, exit `127:0`, elapsed `00:00:06`
   - postprocess `4958309`: `PENDING`; because dependency is `afterany`, it should still run and record deterministic failure outputs
 - No final claim is made. Final validation can be interpreted only after the postprocess scoreboard exists and passes all seven final tasks by the `+0.001` margin.
+
+## 2026-06-20 Round 003 Final Validation Repair
+
+- Resume check found both original jobs terminal:
+  - eval `4958307`: `FAILED`, exit `127:0`
+  - postprocess `4958309`: `FAILED`, exit `127:0`
+- Postprocess marker:
+  - `outputs/goal/runs/batch_003_final/postprocess_failed.json`
+  - failure line: `74`
+- Root cause:
+  - `scripts/goal_submit_batch.py` exported `PYTHON_BIN=python` because the submit shell had sourced `scripts/slurm_env.sh`.
+  - With `--export=NONE`, compute jobs inherited `PYTHON_BIN=python` but did not inherit an activated conda environment.
+  - `scripts/slurm_env.sh` skipped conda activation because `PYTHON_BIN` was already set.
+  - Compute nodes did not have `python` on `PATH`, so both eval and postprocess failed with `python: command not found`.
+- Infrastructure-only fix:
+  - `scripts/goal_submit_batch.py` now filters generic `PYTHON_BIN=python` and `PYTHON_BIN=python3` out of Slurm exports.
+  - Absolute or explicitly configured Python paths can still be exported.
+  - Candidate rule, metric, frozen baseline, and final task set were not changed.
+- Repair manifest:
+  - `experiments/batches/batch_003_final_repair.yaml`
+  - Same run ID and candidate rule as `batch_003_final`.
+  - Same seven final tasks and `candidate_loop_indices: [3]`.
+- Validation before repair submit:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_003_final_repair.yaml` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_003_final_repair.yaml --dry-run --submit-postprocess` passed and did not export generic `PYTHON_BIN`.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_003_final_repair.yaml` passed.
+- Repair submission through `scripts/goal_submit_batch.py --submit --submit-postprocess` only:
+  - eval job `4958436`
+  - postprocess job `4958437`
+  - postprocess dependency `afterany:4958436`
+- Immediate queue state:
+  - eval `4958436`: `PENDING`
+  - postprocess `4958437`: `PENDING` with dependency
+- No final claim is made. The repair batch must wait for Slurm-native postprocess and then be scored against all seven final tasks.

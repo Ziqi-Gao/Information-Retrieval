@@ -1,0 +1,72 @@
+batch_id: batch_003_final_repair
+description: "Repair rerun for the approved Round 003 final-validation candidate after Slurm Python environment export failure."
+created_by: codex
+purpose: final
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 1
+  max_gpu_hours_estimate: 12
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r003_final_query_loop_matryoshka_t3_a20
+    hypothesis: "The Round 002 leading dev candidate may beat the frozen standard baseline by the fixed margin on every final retrieval task when evaluated with one predeclared global rule."
+    mechanism: "Evaluation-only weighted concatenation where queries use frozen standard plus loop_matryoshka loop-3 embeddings, while documents use frozen standard embeddings on both concatenated sides."
+    expected_effect: "Preserve the four-task dev gains while measuring whether the same global query-only loop signal transfers to ArguAna, Touche2020, and TRECCOVID."
+    version: loop_matryoshka
+    eval_only: true
+    standard_preserving: true
+    candidate_rule: "Use fusion_scope=query_only, fusion_alpha=0.20, and loop_idx=3 for every final task."
+    expected_failure_modes:
+      - "Held-out final tasks may not benefit from query-only loop fusion."
+      - "The fixed global alpha may underperform on tasks with different query/document style."
+      - "Any missing, invalid, duplicate, partial, or NaN final-task result invalidates the candidate."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - SCIDOCS
+        - FiQA2018
+        - ArguAna
+        - Touche2020
+        - TRECCOVID
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+      fusion_standard_checkpoint_dir: outputs/final_grid_experiment/checkpoints/standard
+      fusion_alpha: 0.20
+      fusion_scope: query_only
+    risk:
+      level: medium
+      reason: "This is final-task validation, but the method is evaluation-only and predeclares one global candidate rule."
+    estimated_gpu_hours: 12
+    fallback: "If any final task fails or falls below the margin, do not make a final claim; return to dev-only analysis with a new predeclared hypothesis."

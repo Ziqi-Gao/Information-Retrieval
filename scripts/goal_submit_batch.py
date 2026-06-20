@@ -112,6 +112,8 @@ def safe_runtime_exports() -> Dict[str, str]:
     for key in SAFE_RUNTIME_ENV_KEYS:
         value = os.environ.get(key)
         if value:
+            if key == "PYTHON_BIN" and value in {"python", "python3"}:
+                continue
             exports[key] = value
     return exports
 
@@ -121,6 +123,8 @@ def safe_postprocess_runtime_exports() -> Dict[str, str]:
     for key in POSTPROCESS_RUNTIME_ENV_KEYS:
         value = os.environ.get(key)
         if value:
+            if key == "PYTHON_BIN" and value in {"python", "python3"}:
+                continue
             exports[key] = value
     return exports
 
