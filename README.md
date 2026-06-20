@@ -107,6 +107,9 @@ Experiment versions are registered in [src/experiments.py](src/experiments.py). 
 | `standard` | baseline | Single-pass no-loop retriever; only ModernBERT encoder parameters are trainable. |
 | `loop_final` | loop curve | Parameter-free memory loop retriever supervised only at the final loop. |
 | `loop_matryoshka` | loop curve | Parameter-free memory loop retriever supervised at every loop. |
+| `loop_matryoshka_first_token` | loop curve | First-token memory loop retriever supervised at every loop. |
+| `loop_final_first_token` | loop curve | First-token memory loop retriever supervised only at the final loop. |
+| `loop_matryoshka_token_concat` | loop curve | Token-concat memory loop retriever supervised at every loop. |
 | `loop_final_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised only at the final loop. |
 | `loop_matryoshka_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised at every loop. |
 | `loop_final_recurrent_no_memory` | loop curve | No-memory recurrent query-token hidden states; supervised only at the final loop. |

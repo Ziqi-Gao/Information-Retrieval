@@ -542,3 +542,72 @@ This notebook records factual preparation steps for the autonomous retrieval goa
 - Updated `AGENTS.md` and `docs/goal_protocol.md` to require local-search exhaustion detection, `RESEARCH_DESIGN_MODE`, and portfolio-style dev batch design after repeated `standalone_main` failures.
 - Updated `README.md` with a short pointer to the same autonomous exploration discipline.
 - Next action remains unchanged: wait for `batch_007_dev` Slurm-native postprocess, analyze its scoreboard, and only then decide whether the result triggers `RESEARCH_DESIGN_MODE`.
+
+## 2026-06-20 Batch 007 Dev Standalone Result
+
+- `batch_007_dev` completed Slurm-native postprocess:
+  - eval jobs: `5034376`, `5034377`, `5034378`, `5034379`
+  - postprocess job: `5034380`
+  - marker: `outputs/goal/runs/batch_007_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_007_dev/scoreboard.json`
+- A local `goal_status.py --batch-id batch_007_dev --update-state` refresh attempt hung in Slurm status querying and was terminated. The postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; all candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r007_first_token_t8__loop8`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.00710`, dev mean delta `+0.00056`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00664`, `NFCorpus +0.00310`, `FiQA2018 -0.00710`, `SCIDOCS -0.00040`.
+  - `r007_first_token_t6__loop6`: track `standalone_main`, all success flags false, dev min delta `-0.00791`, dev mean delta `+0.00047`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00663`, `NFCorpus +0.00329`, `FiQA2018 -0.00791`, `SCIDOCS -0.00013`.
+  - `r007_first_token_t9__loop9`: track `standalone_main`, all success flags false, dev min delta `-0.00910`, dev mean delta `-0.00032`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00621`, `NFCorpus +0.00317`, `FiQA2018 -0.00910`, `SCIDOCS -0.00156`.
+  - `r007_first_token_t5__loop5`: track `standalone_main`, all success flags false, dev min delta `-0.00958`, dev mean delta `-0.00062`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00442`, `NFCorpus +0.00338`, `FiQA2018 -0.00958`, `SCIDOCS -0.00071`.
+- Decision: `main_goal_success=false`. `batch_007_dev` was a local-neighborhood loop-depth sweep and did not produce a viable global dev signal.
+
+## 2026-06-20 Research Design Round 001 And Batch 008 Portfolio
+
+- Local search is exhausted under the current protocol:
+  - recent standalone_main dev batches `batch_004_dev`, `batch_005_dev`, `batch_006_dev`, and `batch_007_dev` did not produce a viable global dev signal;
+  - recent work mainly evaluated existing checkpoints, memory modes, and nearby loop depths;
+  - the recurring standalone pattern is SciFact/NFCorpus gains with FiQA2018 and SCIDOCS regressions.
+- Entered `RESEARCH_DESIGN_MODE` before creating a new batch.
+- Wrote the research plan at `docs/research_design_round_001.md`.
+- Broad standalone directions considered:
+  - final-loop objective with first-token memory;
+  - detached first-token memory training;
+  - short-horizon first-token loopwise training;
+  - single-loop standalone control;
+  - document-side loop symmetry;
+  - hard-negative curriculum or sampling change;
+  - conservative evaluation-time loop normalization.
+- Selected one portfolio-style dev batch: `experiments/batches/batch_008_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r008_final_first_token_t10`: final-loop first-token objective, fixed `loop_idx=10`.
+  - `r008_detached_first_token_t10`: detached first-token loopwise training, fixed `loop_idx=10`.
+  - `r008_short_first_token_t4`: first-token loopwise training with `tmax=4`, fixed `loop_idx=4`.
+  - `r008_single_loop_t1`: one-loop standalone control, fixed `loop_idx=1`.
+- Portfolio rationale:
+  - tests objective, recurrence-gradient behavior, training horizon, and recurrence control;
+  - does not reuse the same failed checkpoint at neighboring loop depths;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
+- Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 4 concurrent GPU jobs.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_008_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_008_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_008_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Train/eval job IDs:
+    - `r008_final_first_token_t10`: train `5035132`, eval `5035133`
+    - `r008_detached_first_token_t10`: train `5035134`, eval `5035135`
+    - `r008_short_first_token_t4`: train `5035136`, eval `5035137`
+    - `r008_single_loop_t1`: train `5035138`, eval `5035139`
+  - Postprocess job ID: `5035140`
+  - Postprocess dependency: `afterany:5035133:5035135:5035137:5035139`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_008_dev/scoreboard.json`.
