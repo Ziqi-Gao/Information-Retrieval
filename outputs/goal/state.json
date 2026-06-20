@@ -12,9 +12,9 @@
   },
   "current_batch": {
     "batch_id": "batch_002_dev",
-    "dry_run": true,
+    "dry_run": false,
     "manifest": "experiments/batches/batch_002_dev.yaml",
-    "plan": "outputs/goal/runs/batch_002_dev/dry_run_plan.json"
+    "plan": "outputs/goal/runs/batch_002_dev/submission_plan.json"
   },
   "final_tasks": [
     "SciFact",
@@ -31,47 +31,47 @@
     "path": "outputs/goal/runs/batch_001_dev/watcher_status.json",
     "updated_at": "2026-06-20T02:06:32Z"
   },
-  "next_required_action": "Review dry-run plan, then submit only if the manifest allows it.",
+  "next_required_action": "Wait for jobs, then collect results.",
   "open_jobs": [
     {
       "batch_id": "batch_002_dev",
       "depends_on": null,
-      "job_id": null,
+      "job_id": "4957408",
       "run_id": "r002_both_loop_matryoshka_t3_a15",
-      "status": "dry_run",
+      "status": "submitted",
       "type": "eval"
     },
     {
       "batch_id": "batch_002_dev",
       "depends_on": null,
-      "job_id": null,
+      "job_id": "4957409",
       "run_id": "r002_both_loop_matryoshka_t3_a20",
-      "status": "dry_run",
+      "status": "submitted",
       "type": "eval"
     },
     {
       "batch_id": "batch_002_dev",
       "depends_on": null,
-      "job_id": null,
+      "job_id": "4957410",
       "run_id": "r002_query_loop_matryoshka_t3_a10",
-      "status": "dry_run",
+      "status": "submitted",
       "type": "eval"
     },
     {
       "batch_id": "batch_002_dev",
       "depends_on": null,
-      "job_id": null,
+      "job_id": "4957411",
       "run_id": "r002_query_loop_matryoshka_t3_a20",
-      "status": "dry_run",
+      "status": "submitted",
       "type": "eval"
     }
   ],
-  "phase": "DRY_RUN_SUBMIT",
+  "phase": "SUBMIT_BATCH",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "b088abd3a5466810b542df49b2b72542018e707d",
-    "dirty": true
+    "commit": "2969446486c07ec9f3121eb7c8d7e21b5acfb06d",
+    "dirty": false
   },
   "win_margin": 0.001
 }

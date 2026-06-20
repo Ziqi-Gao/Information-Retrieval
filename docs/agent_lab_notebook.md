@@ -117,3 +117,11 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `python scripts/goal_validate_manifest.py experiments/batches/batch_002_dev.yaml` passed.
   - `python scripts/goal_submit_batch.py experiments/batches/batch_002_dev.yaml --dry-run --resume` passed and wrote `outputs/goal/runs/batch_002_dev/dry_run_plan.json`.
   - `python scripts/goal_preflight.py --manifest experiments/batches/batch_002_dev.yaml` passed.
+- Round 002 submitted through `scripts/goal_submit_batch.py --submit` only.
+- Slurm job IDs:
+  - `r002_both_loop_matryoshka_t3_a15`: eval job `4957408`
+  - `r002_both_loop_matryoshka_t3_a20`: eval job `4957409`
+  - `r002_query_loop_matryoshka_t3_a10`: eval job `4957410`
+  - `r002_query_loop_matryoshka_t3_a20`: eval job `4957411`
+- Scheduler options were provided through `SBATCH_ARGS` for this local cluster; they were not written into tracked manifests.
+- Post-submit watcher fix: `scripts/goal_watch_batch.py` now marks state terminal before launching Codex so codex-mode resume cannot be overwritten by the watcher after Codex returns.

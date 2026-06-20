@@ -306,10 +306,10 @@ def main() -> None:
                 "next_commands": commands,
                 "mode": args.mode,
             }
+            mark_state_terminal(state_path, args.batch_id, run_dir, jobs)
             if args.mode == "codex":
                 status["codex"] = launch_codex(args, run_dir, status, log_path)
             write_watcher_status(run_dir, status)
-            mark_state_terminal(state_path, args.batch_id, run_dir, jobs)
             print("Batch {} reached terminal state.".format(args.batch_id))
             for job in jobs:
                 print("- {run_id} {type}: {status} job={job_id}".format(**job))
