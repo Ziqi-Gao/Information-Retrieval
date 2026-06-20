@@ -126,6 +126,161 @@ Dev manifests may use `claim_track: standalone_main` for standalone-only explora
 
 For final manifests, a `standalone_main` experiment must evaluate exactly the seven protocol final tasks, predeclare candidate loop indices or candidate IDs, and avoid frozen-standard scoring inputs except for the baseline comparison. A final fusion experiment remains valid as `fusion_diagnostic`, but it cannot support the main goal claim.
 
+## Research Design Discipline
+
+Autonomous agents must avoid getting trapped in narrow local searches. The goal is to maximize useful evidence per user resume cycle while preserving the existing acceptance thresholds, metric semantics, baseline, and claim-track separation.
+
+### Local Search Exhaustion
+
+A local search is exhausted when at least two recent `standalone_main` dev batches fail to produce a viable global dev signal, or when recent batches mainly change only local knobs such as:
+
+- `loop_idx`
+- neighboring eval depth around the same checkpoint
+- memory mode variants without changing the underlying standalone mechanism
+- re-evaluating the same failed checkpoint at nearby depths
+- small hyperparameter perturbations around a failed candidate
+- repeated narrow sweeps around the same failure pattern
+
+A viable global dev signal means:
+
+- all dev tasks are non-regressing, or nearly all are non-regressing with a clearly positive macro mean
+- the candidate does not depend on frozen-standard fusion or standard-score interpolation
+- the result is strong enough to justify either another focused dev test or final-validation planning under this protocol
+
+If local search is exhausted, the agent must not submit another local-neighborhood sweep.
+
+Examples of local-neighborhood sweeps include:
+
+- only changing `loop_idx` around the same checkpoint
+- only testing `t5/t6/t8/t9` after `t7` failed
+- only changing one memory mode while keeping the same mechanism and failure pattern
+- only retesting nearby depths of a checkpoint that already showed broad dev regressions
+
+This rule does not ban focused follow-up. A local follow-up is allowed only when the latest dev result shows a strong, coherent global signal and the next local probe is clearly justified.
+
+### RESEARCH_DESIGN_MODE
+
+When local search is exhausted, the agent must enter `RESEARCH_DESIGN_MODE` before creating any new batch.
+
+In `RESEARCH_DESIGN_MODE`, the agent must write a short research plan into `docs/agent_lab_notebook.md` or a dedicated `docs/research_design_round_<N>.md` file before creating or submitting a new manifest.
+
+The plan must include:
+
+- summary of what has been tried so far
+- distinction between `fusion_diagnostic` results and `standalone_main` results
+- failure pattern across recent `standalone_main` dev batches
+- which dev tasks consistently regress
+- why further local loop-depth or memory-mode sweeps are likely low-value
+- 5 to 8 substantially different `standalone_main` research directions
+- for each direction:
+  - core mechanism hypothesis
+  - code components likely affected
+  - why it may address the observed failure pattern
+  - expected risk
+  - estimated GPU cost
+  - smallest dev-only test that would falsify it
+  - whether it requires training, evaluation-only changes, or both
+- ranking of the directions by:
+  - standalone-main validity
+  - novelty relative to previous batches
+  - likelihood of addressing regressions
+  - implementation risk
+  - GPU cost
+  - clarity of falsification
+- one chosen portfolio for the next dev batch, or a stop decision if no valid direction is available
+
+`RESEARCH_DESIGN_MODE` must not:
+
+- use final-task deltas to tune dev candidates
+- lower acceptance thresholds
+- convert `fusion_diagnostic` results into `main_goal_success`
+- use frozen-standard embeddings, frozen-standard scores, weighted standard+candidate concatenation, or standard-score interpolation for `standalone_main` candidates
+- submit jobs before the research plan is written
+- create more than one next dev batch in a single resume cycle
+- continue local loop-depth sweeps unless the plan explicitly justifies why local search is not exhausted
+
+### Batch Efficiency And Portfolio Design
+
+The user wants fewer manual resume cycles. Whenever the agent creates a new dev batch, it should maximize useful information per batch under the existing GPU, concurrency, and safety budgets.
+
+Prefer portfolio batches over tiny single-candidate batches. A new dev batch should normally include multiple valuable experiments, not just one local candidate, unless:
+
+- the experiment is unusually expensive
+- a repair batch is needed
+- the protocol requires a narrow validation step
+- only one valid candidate can be designed safely
+- adding more candidates would reduce scientific clarity
+
+Use the available batch budget efficiently. When designing a dev batch, the agent should consider:
+
+- `max_concurrent_gpu_jobs`
+- `max_gpu_hours_per_batch`
+- expected GPU hours per candidate
+- whether jobs can run independently
+- whether postprocess can score all candidates together
+
+The agent should try to use the available batch capacity for informative candidates while staying safely within budget. Do not leave most of the batch budget unused if additional high-value, protocol-valid candidates are available.
+
+Prefer diversity over redundant local sweeps. A batch should maximize expected information gain. Prefer candidates that test meaningfully different mechanisms or failure hypotheses.
+
+Avoid filling a batch with many near-duplicates such as:
+
+- only neighboring `loop_idx` values
+- only tiny hyperparameter changes
+- only variants of the same failed checkpoint
+- only one memory mode with several adjacent depths
+
+Such local sweeps are allowed only when explicitly justified by strong dev evidence and are not the dominant pattern after local search has been exhausted.
+
+### Portfolio Design After RESEARCH_DESIGN_MODE
+
+When `RESEARCH_DESIGN_MODE` is triggered, the agent should propose 5 to 8 substantially different `standalone_main` directions, then select a portfolio of candidates for the next dev batch.
+
+The selected portfolio should usually include 2 to 4 candidates, depending on cost and risk. Candidates may come from different research directions if they can be tested safely in the same batch.
+
+For each selected candidate, the agent must record:
+
+- which research direction it tests
+- why it is included in the same batch
+- what failure mode it is meant to falsify
+- estimated GPU cost
+- expected information gain
+- whether it is `standalone_main`, `diagnostic`, or `fusion_diagnostic`
+
+Do not add low-value experiments just to fill the batch.
+
+Every candidate in a portfolio batch must still:
+
+- be predeclared
+- have a clear hypothesis
+- have a global candidate rule across dev tasks
+- avoid final-task tuning
+- avoid frozen-standard fusion if marked `standalone_main`
+- stay within the configured GPU budget
+- be auditable and reproducible
+
+A resume cycle may submit at most one new batch, but that batch should be designed as an efficient portfolio when possible.
+
+Before submitting a new dev batch, the agent must report:
+
+- why this batch is the right size
+- how many candidates are included
+- why each candidate is valuable
+- why the batch is not an uninformative local sweep
+- estimated GPU hours versus allowed budget
+- expected information gained if all candidates fail
+- exact postprocess behavior
+
+Do not submit a new batch until this portfolio rationale is written.
+
+### Interaction With Running Batches
+
+If a batch is currently pending or running, protocol updates and planning notes must not disturb it.
+
+Future Codex sessions should first wait for the running batch's postprocess to complete, then analyze its scoreboard. If the result confirms continued local-search failure, `RESEARCH_DESIGN_MODE` should activate before any new batch is created.
+
+Do not modify, resubmit, restart, cancel, or replace a running batch while making protocol-only updates.
+
 ## Slurm Submission
 
 All Slurm submission must go through:

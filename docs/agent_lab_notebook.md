@@ -531,3 +531,14 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5034380`
   - Postprocess dependency: `afterany:5034376:5034377:5034378:5034379`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_007_dev/scoreboard.json`.
+
+## 2026-06-20 Research Design Discipline Protocol Update
+
+- Protocol-only documentation change made while `batch_007_dev` may still be pending or running.
+- No Slurm jobs were submitted, cancelled, restarted, or resubmitted.
+- No training, evaluation, collection, scoring, or postprocess command was run.
+- No batch manifest was created or modified, including `experiments/batches/batch_007_dev.yaml`.
+- No results, scoreboards, raw MTEB outputs, checkpoints, Slurm logs, frozen baselines, or `outputs/goal/state.json` were modified by this protocol update.
+- Updated `AGENTS.md` and `docs/goal_protocol.md` to require local-search exhaustion detection, `RESEARCH_DESIGN_MODE`, and portfolio-style dev batch design after repeated `standalone_main` failures.
+- Updated `README.md` with a short pointer to the same autonomous exploration discipline.
+- Next action remains unchanged: wait for `batch_007_dev` Slurm-native postprocess, analyze its scoreboard, and only then decide whether the result triggers `RESEARCH_DESIGN_MODE`.

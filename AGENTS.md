@@ -58,6 +58,14 @@ BOOTSTRAP
 
 For preparation-only tasks, stop before real large-scale `SUBMIT_BATCH`.
 
+## Research Exploration Discipline
+
+- If repeated `standalone_main` dev batches fail, or recent work is mainly local sweeps over nearby `loop_idx`, memory modes, failed checkpoint depths, or small hyperparameter perturbations, treat local search as exhausted.
+- After local search exhaustion, do not submit another local-neighborhood sweep. Enter `RESEARCH_DESIGN_MODE` first and write a research plan in `docs/agent_lab_notebook.md` or a dedicated research-design note.
+- `RESEARCH_DESIGN_MODE` must summarize prior standalone and fusion-diagnostic evidence, identify repeated regression patterns, explain why more local sweeps are low-value, compare 5-8 substantially different `standalone_main` directions, rank them by validity/novelty/risk/cost/falsifiability, and select either a portfolio for one next dev batch or a stop decision.
+- New dev batches should normally be efficient portfolios of 2-4 informative, diverse, protocol-valid candidates when budget allows. Prefer information gain and independent failure hypotheses over redundant local variants.
+- Do not create or submit a new batch while a current batch is pending or running. Wait for postprocess and analyze the scoreboard first; if it confirms continued local-search failure, enter `RESEARCH_DESIGN_MODE` before designing the next batch.
+
 ## Experiment Logic
 
 - Register experiment variants in `src/experiments.py` first. Training, evaluation, plotting, README, and scripts should derive from those version names.

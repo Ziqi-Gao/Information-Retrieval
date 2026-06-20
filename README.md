@@ -136,6 +136,8 @@ The autonomous goal protocol separates score reports into `standalone_main`, `fu
 
 Fusion diagnostics may be evaluated and reported, but they cannot trigger main goal success. Main success requires a `standalone_main` final candidate with all seven protocol tasks valid, every `ndcg_at_10` delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression. The old `+0.001` all-task threshold is only `minimal_positive_signal`.
 
+Autonomous exploration must also avoid repeated local sweeps after standalone dev failures. When local loop-depth, nearby checkpoint-depth, memory-mode, or small hyperparameter searches are exhausted, future agents must enter `RESEARCH_DESIGN_MODE`, write a research plan, compare substantially different standalone directions, and design an efficient portfolio-style dev batch before any new submission.
+
 ## Installation
 
 ```bash
