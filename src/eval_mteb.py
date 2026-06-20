@@ -106,6 +106,11 @@ def assert_retrieval_tasks(tasks: List[Any], requested_name: str) -> None:
             raise ValueError(f"{task_name!r} is a {task_type!r} task, but this evaluator only supports Retrieval tasks.")
 
 
+def fusion_artifact_dir_name(scope: str, alpha: float) -> str:
+    alpha_text = str(float(alpha)).replace(".", "p")
+    return "fusion_{}_a{}".format(scope, alpha_text)
+
+
 class LoopRetrieverMTEBWrapper:
     def __init__(self, model, loop_idx: int, device: torch.device, batch_size: int) -> None:
         self.model = model
@@ -148,6 +153,75 @@ class LoopRetrieverMTEBWrapper:
         return self.encode_queries(sentences, batch_size=batch_size, **kwargs)
 
 
+def weighted_concat(left: torch.Tensor, right: torch.Tensor, alpha: float) -> torch.Tensor:
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError(f"fusion_alpha must be in [0, 1], got {alpha}.")
+    left_weight = math.sqrt(1.0 - float(alpha))
+    right_weight = math.sqrt(float(alpha))
+    return torch.cat([left * left_weight, right * right_weight], dim=-1)
+
+
+class StandardLoopFusionMTEBWrapper:
+    def __init__(
+        self,
+        standard_model,
+        loop_model,
+        loop_idx: int,
+        fusion_alpha: float,
+        fusion_scope: str,
+        device: torch.device,
+        batch_size: int,
+    ) -> None:
+        if fusion_scope not in {"both", "query_only", "doc_only"}:
+            raise ValueError(f"Unsupported fusion_scope: {fusion_scope}")
+        self.standard_model = standard_model
+        self.loop_model = loop_model
+        self.loop_idx = loop_idx
+        self.fusion_alpha = float(fusion_alpha)
+        self.fusion_scope = fusion_scope
+        self.device = device
+        self.batch_size = batch_size
+
+    def encode_queries(self, queries, batch_size: int = 32, **kwargs):
+        del kwargs
+        queries = list(queries)
+        batch_size = batch_size or self.batch_size
+        with torch.no_grad():
+            standard_emb = self.standard_model.encode_queries(
+                queries,
+                batch_size=batch_size,
+                loop_idx=1,
+                return_all_loops=False,
+                device=self.device,
+            )
+            if self.fusion_scope == "doc_only":
+                loop_emb = standard_emb
+            else:
+                loop_emb = self.loop_model.encode_queries(
+                    queries,
+                    batch_size=batch_size,
+                    loop_idx=self.loop_idx,
+                    return_all_loops=False,
+                    device=self.device,
+                )
+            return weighted_concat(standard_emb, loop_emb, self.fusion_alpha).detach().cpu().numpy()
+
+    def encode_corpus(self, corpus, batch_size: int = 32, **kwargs):
+        del kwargs
+        texts = corpus_to_texts(corpus)
+        batch_size = batch_size or self.batch_size
+        with torch.no_grad():
+            standard_emb = self.standard_model.encode_docs(texts, batch_size=batch_size, device=self.device)
+            if self.fusion_scope == "query_only":
+                loop_emb = standard_emb
+            else:
+                loop_emb = self.loop_model.encode_docs(texts, batch_size=batch_size, device=self.device)
+            return weighted_concat(standard_emb, loop_emb, self.fusion_alpha).detach().cpu().numpy()
+
+    def encode(self, sentences, batch_size: int = 32, **kwargs):
+        return self.encode_queries(sentences, batch_size=batch_size, **kwargs)
+
+
 def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
     summary_path = output_dir / "results_summary.csv"
     lock_path = output_dir / ".results_summary.lock"
@@ -162,6 +236,9 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
         "map_at_10",
         "checkpoint_dir",
         "raw_result_path",
+        "fusion_standard_checkpoint_dir",
+        "fusion_alpha",
+        "fusion_scope",
     ]
     acquire_file_lock(lock_path)
     try:
@@ -173,7 +250,15 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
 
         deduped: Dict[tuple, Dict[str, Any]] = {}
         for row in combined_rows:
-            key = (row.get("version"), row.get("task"), str(row.get("loop_idx")), row.get("checkpoint_dir"))
+            key = (
+                row.get("version"),
+                row.get("task"),
+                str(row.get("loop_idx")),
+                row.get("checkpoint_dir"),
+                row.get("fusion_standard_checkpoint_dir", ""),
+                str(row.get("fusion_alpha", "")),
+                row.get("fusion_scope", ""),
+            )
             deduped[key] = row
 
         with open(summary_path, "w", newline="", encoding="utf-8") as handle:
@@ -190,6 +275,7 @@ def evaluate_one_loop(
     device: torch.device,
     task_name: str,
     loop_idx: int,
+    standard_model=None,
 ) -> Dict[str, Any]:
     try:
         import mteb
@@ -202,7 +288,20 @@ def evaluate_one_loop(
 
     output_dir = ensure_dir(args.output_dir)
     artifact_dir = ensure_dir(output_dir / args.version / safe_task_dir_name(task_name))
-    wrapper = LoopRetrieverMTEBWrapper(model, loop_idx=loop_idx, device=device, batch_size=args.batch_size)
+    if standard_model is not None:
+        artifact_dir = ensure_dir(artifact_dir / fusion_artifact_dir_name(args.fusion_scope, args.fusion_alpha))
+    if standard_model is not None:
+        wrapper = StandardLoopFusionMTEBWrapper(
+            standard_model=standard_model,
+            loop_model=model,
+            loop_idx=loop_idx,
+            fusion_alpha=args.fusion_alpha,
+            fusion_scope=args.fusion_scope,
+            device=device,
+            batch_size=args.batch_size,
+        )
+    else:
+        wrapper = LoopRetrieverMTEBWrapper(model, loop_idx=loop_idx, device=device, batch_size=args.batch_size)
     tasks = mteb.get_tasks(tasks=[task_name])
     assert_retrieval_tasks(tasks, task_name)
     evaluator = mteb.MTEB(tasks=tasks)
@@ -229,6 +328,9 @@ def evaluate_one_loop(
         "map_at_10": parsed.get("map_at_10"),
         "checkpoint_dir": str(args.checkpoint_dir),
         "raw_result_path": str(raw_path),
+        "fusion_standard_checkpoint_dir": args.fusion_standard_checkpoint_dir or "",
+        "fusion_alpha": "" if args.fusion_alpha is None else args.fusion_alpha,
+        "fusion_scope": args.fusion_scope if args.fusion_standard_checkpoint_dir else "",
     }
 
 
@@ -245,6 +347,23 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--loop_idx", type=int, default=None)
     parser.add_argument("--eval_all_loops", type=str2bool, default=False)
+    parser.add_argument(
+        "--fusion_standard_checkpoint_dir",
+        default=None,
+        help="Optional standard checkpoint for standard+loop weighted-concat retrieval-time fusion.",
+    )
+    parser.add_argument(
+        "--fusion_alpha",
+        type=float,
+        default=None,
+        help="Loop-side weight for standard+loop weighted-concat fusion. Requires --fusion_standard_checkpoint_dir.",
+    )
+    parser.add_argument(
+        "--fusion_scope",
+        choices=["both", "query_only", "doc_only"],
+        default="both",
+        help="Which side uses loop embeddings during fusion. Default preserves standard+loop fusion on both sides.",
+    )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--device", default="cuda")
@@ -259,8 +378,19 @@ def main() -> None:
         print("CUDA was requested for evaluation, but it is unavailable. Falling back to CPU.")
         requested_device = torch.device("cpu")
 
+    if bool(args.fusion_standard_checkpoint_dir) != (args.fusion_alpha is not None):
+        raise ValueError("--fusion_standard_checkpoint_dir and --fusion_alpha must be provided together.")
+    if not args.fusion_standard_checkpoint_dir and args.fusion_scope != "both":
+        raise ValueError("--fusion_scope may only be set when fusion is enabled.")
+    if args.fusion_alpha is not None and not 0.0 <= float(args.fusion_alpha) <= 1.0:
+        raise ValueError("--fusion_alpha must be in [0, 1].")
+
     model = load_model(args.checkpoint_dir, map_location="cpu").to(requested_device)
     model.eval()
+    standard_model = None
+    if args.fusion_standard_checkpoint_dir:
+        standard_model = load_model(args.fusion_standard_checkpoint_dir, map_location="cpu").to(requested_device)
+        standard_model.eval()
     task_names = split_task_names(args.task_names, args.task_name)
 
     if get_version_spec(args.version).is_standard_family:
@@ -276,7 +406,7 @@ def main() -> None:
     for task_name in task_names:
         for loop_idx in loop_indices:
             print(f"Evaluating {args.version} loop {loop_idx} on {task_name}")
-            rows.append(evaluate_one_loop(args, model, requested_device, task_name, loop_idx))
+            rows.append(evaluate_one_loop(args, model, requested_device, task_name, loop_idx, standard_model=standard_model))
 
     append_summary_rows(Path(args.output_dir), rows)
     print(f"Wrote summary rows to {Path(args.output_dir) / 'results_summary.csv'}")

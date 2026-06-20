@@ -18,6 +18,7 @@ from goal_common import (
     path_under,
     relative_path_under,
     safe_run_id,
+    strict_bool,
     validate_baseline_artifacts,
 )
 
@@ -64,6 +65,49 @@ def _state_budget_limits() -> Dict[str, Optional[float]]:
     }
 
 
+def _validate_bool_field(errors: List[str], value: Any, field_name: str, default: bool = False) -> bool:
+    parsed = strict_bool(value, default=default)
+    if parsed is None:
+        _add(errors, "{} must be a YAML boolean true/false".format(field_name))
+        return default
+    return parsed
+
+
+def _validate_checkpoint_dir(
+    errors: List[str],
+    label: str,
+    checkpoint_dir: Any,
+    loop_idx: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
+    if not checkpoint_dir:
+        _add(errors, "{} is required".format(label))
+        return None
+    checkpoint_path = Path(checkpoint_dir)
+    if not checkpoint_path.exists():
+        _add(errors, "{} does not exist: {}".format(label, checkpoint_dir))
+        return None
+    if path_under(checkpoint_path, "outputs/baselines"):
+        _add(errors, "{} must not be under outputs/baselines".format(label))
+        return None
+    config_path = checkpoint_path / "loop_config.json"
+    state_path = checkpoint_path / "model_state.pt"
+    if not config_path.exists():
+        _add(errors, "{} is missing loop_config.json: {}".format(label, config_path))
+        return None
+    if not state_path.exists():
+        _add(errors, "{} is missing model_state.pt: {}".format(label, state_path))
+        return None
+    try:
+        config = load_json(config_path)
+    except SystemExit:
+        _add(errors, "{} has invalid loop_config.json: {}".format(label, config_path))
+        return None
+    tmax = config.get("tmax")
+    if loop_idx is not None and (not isinstance(tmax, int) or loop_idx > tmax):
+        _add(errors, "{} loop_idx {} exceeds checkpoint tmax {}".format(label, loop_idx, tmax))
+    return config
+
+
 def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None) -> Dict[str, Any]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -108,6 +152,8 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
     for key in ["config", "output_base", "eval_output_base"]:
         if key not in defaults:
             _add(errors, "defaults.{} is required".format(key))
+    if "eval_all_loops" in defaults:
+        _validate_bool_field(errors, defaults.get("eval_all_loops"), "defaults.eval_all_loops", default=False)
     if defaults.get("config") and not Path(defaults["config"]).exists():
         _add(errors, "defaults.config does not exist: {}".format(defaults["config"]))
     path_requirements = {
@@ -124,8 +170,8 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
     budget = manifest.get("budget") or {}
     max_jobs = budget.get("max_concurrent_gpu_jobs")
     max_hours = budget.get("max_gpu_hours_estimate")
-    allow_submit = bool(budget.get("allow_submit", False))
-    allow_over_budget = bool(budget.get("allow_over_budget", False))
+    allow_submit = _validate_bool_field(errors, budget.get("allow_submit"), "budget.allow_submit", default=False)
+    allow_over_budget = _validate_bool_field(errors, budget.get("allow_over_budget"), "budget.allow_over_budget", default=False)
     if not isinstance(max_jobs, int) or max_jobs <= 0:
         _add(errors, "budget.max_concurrent_gpu_jobs must be a positive integer")
     parsed_hours = metric_float(max_hours)
@@ -187,8 +233,54 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
             if value and not relative_path_under(value, path_requirements[key]):
                 _add(errors, "experiment {} {} must be a relative path under {}".format(run_id or idx, key, path_requirements[key]))
 
-        exp_tasks = parse_task_list((experiment.get("eval") or {}).get("task_names"))
         eval_config = experiment.get("eval") or {}
+        exp_tasks = parse_task_list(eval_config.get("task_names"))
+        eval_only = _validate_bool_field(errors, experiment.get("eval_only"), "experiment {} eval_only".format(run_id or idx), default=False)
+        if "eval_all_loops" in eval_config:
+            _validate_bool_field(errors, eval_config.get("eval_all_loops"), "experiment {} eval.eval_all_loops".format(run_id or idx), default=False)
+        has_external_eval_checkpoint = any(
+            key in eval_config for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha", "fusion_scope"]
+        )
+        if has_external_eval_checkpoint and not eval_only:
+            _add(errors, "experiment {} uses eval checkpoint/fusion fields and must set eval_only: true".format(run_id or idx))
+        loop_idx = eval_config.get("loop_idx")
+        if loop_idx is not None and (not isinstance(loop_idx, int) or loop_idx <= 0):
+            _add(errors, "experiment {} eval.loop_idx must be a positive integer".format(run_id or idx))
+            loop_idx = None
+        loop_config: Optional[Dict[str, Any]] = None
+        if eval_only:
+            loop_config = _validate_checkpoint_dir(
+                errors,
+                "experiment {} eval.checkpoint_dir".format(run_id or idx),
+                eval_config.get("checkpoint_dir"),
+                loop_idx=loop_idx,
+            )
+        fusion_checkpoint = eval_config.get("fusion_standard_checkpoint_dir")
+        fusion_alpha_value = eval_config.get("fusion_alpha")
+        if bool(fusion_checkpoint) != (fusion_alpha_value is not None):
+            _add(errors, "experiment {} fusion_standard_checkpoint_dir and fusion_alpha must be provided together".format(run_id or idx))
+        fusion_scope = eval_config.get("fusion_scope", "both")
+        if fusion_scope not in {"both", "query_only", "doc_only"}:
+            _add(errors, "experiment {} eval.fusion_scope must be one of both, query_only, doc_only".format(run_id or idx))
+        if "fusion_scope" in eval_config and not fusion_checkpoint:
+            _add(errors, "experiment {} eval.fusion_scope requires fusion_standard_checkpoint_dir and fusion_alpha".format(run_id or idx))
+        fusion_config: Optional[Dict[str, Any]] = None
+        if fusion_checkpoint:
+            fusion_config = _validate_checkpoint_dir(
+                errors,
+                "experiment {} fusion_standard_checkpoint_dir".format(run_id or idx),
+                fusion_checkpoint,
+                loop_idx=1,
+            )
+        if fusion_alpha_value is not None:
+            fusion_alpha = metric_float(fusion_alpha_value)
+            if fusion_alpha is None or fusion_alpha < 0.0 or fusion_alpha > 1.0:
+                _add(errors, "experiment {} eval.fusion_alpha must be a number in [0, 1]".format(run_id or idx))
+        if loop_config and fusion_config:
+            loop_dim = loop_config.get("embedding_dim")
+            fusion_dim = fusion_config.get("embedding_dim")
+            if loop_dim is not None and fusion_dim is not None and loop_dim != fusion_dim:
+                _add(errors, "experiment {} fusion embedding_dim mismatch: {} vs {}".format(run_id or idx, fusion_dim, loop_dim))
         for task in exp_tasks:
             if task not in FINAL_TASKS:
                 _add(errors, "experiment {} has unknown eval task {}".format(run_id or idx, task))

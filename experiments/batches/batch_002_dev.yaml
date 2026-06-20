@@ -1,0 +1,161 @@
+batch_id: batch_002_dev
+description: "Round 002 dev-only matryoshka loop-3 fusion scope and alpha probes."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 24
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r002_both_loop_matryoshka_t3_a15
+    hypothesis: "Increasing the loop-side weight from 0.10 to 0.15 may lift SCIDOCS over the dev margin while preserving the loop-3 gains on SciFact, NFCorpus, and FiQA2018."
+    mechanism: "Evaluation-only weighted concatenation of frozen standard embeddings and loop_matryoshka loop-3 embeddings on both query and document sides."
+    expected_effect: "Small SCIDOCS gain relative to Round 001 with possible drift risk on NFCorpus or FiQA2018."
+    version: loop_matryoshka
+    eval_only: true
+    standard_preserving: true
+    candidate_rule: "Use the same global alpha=0.15, fusion_scope=both, and loop_idx=3 for every task."
+    expected_failure_modes:
+      - "Higher loop weight may reduce NFCorpus or FiQA2018 below the margin."
+      - "Dev-only gains may not transfer to held-out final tasks."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+      fusion_standard_checkpoint_dir: outputs/final_grid_experiment/checkpoints/standard
+      fusion_alpha: 0.15
+      fusion_scope: both
+    risk:
+      level: low
+      reason: "Evaluation-only, fixed global alpha, fixed loop depth, and alpha=0 remains the frozen-standard fallback."
+    estimated_gpu_hours: 4
+    fallback: "Discard this candidate and keep Round 001 loop-3 alpha=0.10 as the reference dev signal."
+
+  - run_id: r002_both_loop_matryoshka_t3_a20
+    hypothesis: "A stronger loop-side weight may be needed for SCIDOCS, but should still be checked as a fixed global candidate rather than task-specific tuning."
+    mechanism: "Evaluation-only weighted concatenation of frozen standard embeddings and loop_matryoshka loop-3 embeddings on both query and document sides."
+    expected_effect: "Potentially clears the SCIDOCS margin; risk is over-weighting loop representations on NFCorpus or FiQA2018."
+    version: loop_matryoshka
+    eval_only: true
+    standard_preserving: true
+    candidate_rule: "Use the same global alpha=0.20, fusion_scope=both, and loop_idx=3 for every task."
+    expected_failure_modes:
+      - "Loop document drift may dominate standard retrieval on some tasks."
+      - "Improving SCIDOCS alone is not enough if any other dev task drops below margin."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+      fusion_standard_checkpoint_dir: outputs/final_grid_experiment/checkpoints/standard
+      fusion_alpha: 0.20
+      fusion_scope: both
+    risk:
+      level: low
+      reason: "Evaluation-only with a predeclared global alpha; no post-hoc per-task loop or alpha choice is allowed."
+    estimated_gpu_hours: 4
+    fallback: "Discard if stronger loop weight hurts any dev task below the margin."
+
+  - run_id: r002_query_loop_matryoshka_t3_a10
+    hypothesis: "Query-only loop fusion may keep the standard document space intact and reduce document-side drift while retaining Round 001 loop-3 gains."
+    mechanism: "Evaluation-only weighted concatenation where queries use standard plus loop_matryoshka loop-3 embeddings, while documents use frozen standard embeddings on both concatenated sides."
+    expected_effect: "Improves or preserves SCIDOCS without sacrificing SciFact, NFCorpus, or FiQA2018 as much as both-side fusion."
+    version: loop_matryoshka
+    eval_only: true
+    standard_preserving: true
+    candidate_rule: "Use the same global alpha=0.10, fusion_scope=query_only, and loop_idx=3 for every task."
+    expected_failure_modes:
+      - "Loop query representations may not add enough signal when paired only with standard documents."
+      - "The Round 001 gain may have depended on loop document embeddings."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+      fusion_standard_checkpoint_dir: outputs/final_grid_experiment/checkpoints/standard
+      fusion_alpha: 0.10
+      fusion_scope: query_only
+    risk:
+      level: low
+      reason: "Evaluation-only, standard document fallback is preserved, and the candidate rule is global across dev tasks."
+    estimated_gpu_hours: 4
+    fallback: "Discard if query-only fusion loses the Round 001 gains."
+
+  - run_id: r002_query_loop_matryoshka_t3_a20
+    hypothesis: "If query-only fusion is safer than both-side fusion, a higher loop query weight may lift SCIDOCS without document-side drift."
+    mechanism: "Evaluation-only weighted concatenation where queries use standard plus loop_matryoshka loop-3 embeddings, while documents use frozen standard embeddings on both concatenated sides."
+    expected_effect: "Tests whether stronger query-side loop signal can clear all four dev tasks by the margin."
+    version: loop_matryoshka
+    eval_only: true
+    standard_preserving: true
+    candidate_rule: "Use the same global alpha=0.20, fusion_scope=query_only, and loop_idx=3 for every task."
+    expected_failure_modes:
+      - "Over-weighted loop queries may drift from the standard document space."
+      - "A dev-task improvement may still fail missing final tasks and require separate final validation."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+      fusion_standard_checkpoint_dir: outputs/final_grid_experiment/checkpoints/standard
+      fusion_alpha: 0.20
+      fusion_scope: query_only
+    risk:
+      level: low
+      reason: "Evaluation-only with frozen standard document embeddings and a predeclared global alpha."
+    estimated_gpu_hours: 4
+    fallback: "Discard if any dev task falls below the +0.001 margin."

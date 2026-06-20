@@ -13,6 +13,11 @@
 
 set -euo pipefail
 
+if [ "${GOAL_SUBMIT_BATCH:-}" != "1" ] && [ "${ALLOW_LEGACY_DIRECT_SBATCH:-}" != "1" ]; then
+  echo "Refusing direct sbatch. Use scripts/goal_submit_batch.py, or set ALLOW_LEGACY_DIRECT_SBATCH=1 for an explicit manual override." >&2
+  exit 2
+fi
+
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: ${SLURMD_NODENAME}"
 echo "Start time: $(date)"

@@ -116,6 +116,8 @@ def main() -> None:
     rows: List[Dict[str, Any]] = []
     for job in plan.get("jobs", []):
         for job_type, key in [("train", "train_job_id"), ("eval", "eval_job_id")]:
+            if job.get("eval_only") and job_type == "train":
+                continue
             status = job_status(job.get(key))
             row = {
                 "batch_id": batch_id,
@@ -127,6 +129,22 @@ def main() -> None:
                 "raw_state": status.get("raw_state"),
             }
             rows.append(row)
+
+    postprocess = plan.get("postprocess") or {}
+    postprocess_job_id = plan.get("postprocess_job_id") or postprocess.get("job_id")
+    if postprocess.get("enabled") or postprocess_job_id:
+        status = job_status(postprocess_job_id)
+        rows.append(
+            {
+                "batch_id": batch_id,
+                "run_id": batch_id,
+                "type": "postprocess",
+                "job_id": postprocess_job_id,
+                "status": "dry_run" if plan.get("dry_run") and not postprocess_job_id else status["status"],
+                "source": status.get("source"),
+                "raw_state": status.get("raw_state"),
+            }
+        )
 
     result = {"batch_id": batch_id, "repo": repo_status(), "jobs": rows}
     if args.update_state and state_path.exists():

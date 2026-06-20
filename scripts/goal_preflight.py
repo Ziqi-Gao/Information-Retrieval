@@ -139,25 +139,37 @@ def guardrail_self_tests() -> None:
 def main() -> None:
     args = parse_args()
     py = sys.executable
-    steps: List[Tuple[str, List[str]]] = [
-        ("compile src and scripts", [py, "-m", "compileall", "-q", "src", "scripts"]),
-    ]
-    shell_paths = shell_scripts()
-    if shell_paths:
-        steps.append(("shell syntax", ["bash", "-n"] + shell_paths))
-    steps.extend(
-        [
-            ("manifest validation", [py, "scripts/goal_validate_manifest.py", args.manifest]),
-            ("submission dry-run", [py, "scripts/goal_submit_batch.py", args.manifest, "--dry-run"]),
-            ("scoreboard self-test", [py, "scripts/goal_scoreboard.py", "--self-test"]),
-        ]
-    )
-
     print("==> guardrail self-tests")
     guardrail_self_tests()
     print("PASS: guardrail self-tests")
 
-    results = [run_step(name, command) for name, command in steps]
+    with tempfile.TemporaryDirectory() as tmp:
+        preflight_state = str(Path(tmp) / "state.json")
+        steps: List[Tuple[str, List[str]]] = [
+            ("compile src and scripts", [py, "-m", "compileall", "-q", "src", "scripts"]),
+        ]
+        shell_paths = shell_scripts()
+        if shell_paths:
+            steps.append(("shell syntax", ["bash", "-n"] + shell_paths))
+        steps.extend(
+            [
+                ("manifest validation", [py, "scripts/goal_validate_manifest.py", args.manifest]),
+                (
+                    "submission dry-run",
+                    [
+                        py,
+                        "scripts/goal_submit_batch.py",
+                        args.manifest,
+                        "--dry-run",
+                        "--resume",
+                        "--state",
+                        preflight_state,
+                    ],
+                ),
+                ("scoreboard self-test", [py, "scripts/goal_scoreboard.py", "--self-test"]),
+            ]
+        )
+        results = [run_step(name, command) for name, command in steps]
     failed = [name for name, code, _, _ in results if code != 0]
     if failed:
         print("Preflight failed: {}".format(", ".join(failed)))

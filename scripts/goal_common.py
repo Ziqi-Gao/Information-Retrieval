@@ -213,6 +213,14 @@ def metric_float(value: Any) -> Optional[float]:
     return parsed
 
 
+def strict_bool(value: Any, default: Optional[bool] = None) -> Optional[bool]:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return None
+
+
 def maybe_run(command: Sequence[str], dry_run: bool) -> Dict[str, Any]:
     printable = " ".join(str(part) for part in command)
     if dry_run:
