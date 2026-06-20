@@ -323,3 +323,45 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `Touche2020` regressed below the frozen standard baseline.
   - The run is a frozen-standard fusion diagnostic and cannot count as `standalone_main` even if it had passed numerically.
 - Decision: no goal-success claim and no new batch submission in this step.
+
+## 2026-06-20 Batch 004 Dev Standalone Exploration
+
+- Parent decision: after the tightened acceptance policy, resume with dev-only standalone exploration rather than another fusion diagnostic.
+- `batch_003_final_repair` final-task deltas were treated as diagnostic bookkeeping only and were not used for task-specific tuning.
+- Created `experiments/batches/batch_004_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration on dev tasks only. These dev results cannot trigger `main_goal_success`.
+- Dev tasks:
+  - `SciFact`
+  - `NFCorpus`
+  - `FiQA2018`
+  - `SCIDOCS`
+- Predeclared standalone candidates:
+  - `r004_standalone_loop_matryoshka_t2`: existing `loop_matryoshka_mean_pool` checkpoint, fixed `loop_idx=2`.
+  - `r004_standalone_loop_matryoshka_t3`: existing `loop_matryoshka_mean_pool` checkpoint, fixed `loop_idx=3`.
+  - `r004_standalone_loop_matryoshka_t4`: existing `loop_matryoshka_mean_pool` checkpoint, fixed `loop_idx=4`.
+  - `r004_standalone_recurrent_matryoshka_t3`: existing `loop_matryoshka_recurrent_mean_pool` checkpoint, fixed `loop_idx=3`.
+- Guardrails:
+  - No training.
+  - No new retrieval method or architecture change.
+  - No frozen-standard checkpoint, frozen-standard score, `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, weighted standard+loop concatenation, or score interpolation in candidate scoring.
+  - Candidate rule is global per run across all dev tasks.
+- Minor validator/protocol adjustment:
+  - Dev manifests may use `claim_track: standalone_main` for standalone-only exploration.
+  - `main_goal_success` still requires `purpose: final`.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_004_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_004_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_004_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job IDs:
+    - `r004_standalone_loop_matryoshka_t2`: `4960330`
+    - `r004_standalone_loop_matryoshka_t3`: `4960331`
+    - `r004_standalone_loop_matryoshka_t4`: `4960332`
+    - `r004_standalone_recurrent_matryoshka_t3`: `4960333`
+  - Postprocess job ID: `4960334`
+  - Postprocess dependency: `afterany:4960330:4960331:4960332:4960333`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_004_dev/scoreboard.json`.

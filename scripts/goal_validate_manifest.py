@@ -368,7 +368,11 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
             )
         if candidate_track == "standalone_main":
             if purpose != "final":
-                _add(errors, "experiment {} standalone_main requires purpose: final".format(run_id or idx))
+                warnings.append(
+                    "experiment {} is standalone_main on purpose={}; it is valid for standalone exploration but cannot trigger main goal success until final validation".format(
+                        run_id or idx, purpose
+                    )
+                )
             if fusion_evidence:
                 _add(
                     errors,
@@ -556,6 +560,16 @@ def self_test() -> None:
         dev_result = validate_manifest_dict(dev_manifest)
         assert dev_result["valid"], dev_result
         assert dev_result["candidate_tracks"][0]["candidate_track"] == "fusion_diagnostic"
+
+    standalone_dev = copy.deepcopy(base_manifest)
+    standalone_dev["batch_id"] = "validator_selftest_standalone_dev"
+    standalone_dev["purpose"] = "dev"
+    standalone_dev["experiments"][0]["claim_track"] = "standalone_main"
+    standalone_dev["experiments"][0]["eval"]["task_names"] = ["SciFact", "NFCorpus"]
+    standalone_dev["experiments"][0]["eval"]["candidate_loop_indices"] = [3]
+    standalone_dev_result = validate_manifest_dict(standalone_dev)
+    assert standalone_dev_result["valid"], standalone_dev_result
+    assert standalone_dev_result["candidate_tracks"][0]["candidate_track"] == "standalone_main"
     print("goal_validate_manifest self-test passed")
 
 

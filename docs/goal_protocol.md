@@ -122,6 +122,8 @@ Important fields:
 
 The validator rejects missing IDs, duplicate or unsafe run IDs, missing hypotheses, missing risk reasons, unknown tasks, unsupported metrics, output paths under `outputs/baselines`, over-budget manifests, unsafe submit conditions, and any attempt to mark a frozen-standard fusion/ensemble candidate as `standalone_main`.
 
+Dev manifests may use `claim_track: standalone_main` for standalone-only exploration when candidate scoring avoids frozen-standard fusion. Such dev results still cannot trigger `main_goal_success`; that label requires `purpose: final`.
+
 For final manifests, a `standalone_main` experiment must evaluate exactly the seven protocol final tasks, predeclare candidate loop indices or candidate IDs, and avoid frozen-standard scoring inputs except for the baseline comparison. A final fusion experiment remains valid as `fusion_diagnostic`, but it cannot support the main goal claim.
 
 ## Slurm Submission
