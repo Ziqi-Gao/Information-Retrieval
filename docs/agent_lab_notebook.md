@@ -290,3 +290,36 @@ This notebook records factual preparation steps for the autonomous retrieval goa
 - Main goal success now requires a `standalone_main` final candidate, all seven final tasks valid, every final-task delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression.
 - `+0.001` all-task clearance is retained only as `minimal_positive_signal`; it is not goal achieved.
 - `publishable_score_candidate` requires `standalone_main`, every final-task delta at least `+0.002`, and macro mean delta at least `+0.008`; without query-level significance evidence it remains `score-only, not statistically certified`.
+
+## 2026-06-20 Batch 003 Final Repair Result
+
+- `batch_003_final_repair` completed Slurm-native postprocess:
+  - eval job `4958436`
+  - postprocess job `4958437`
+  - marker: `outputs/goal/runs/batch_003_final_repair/postprocess_done.json`
+- Collection validated all seven protocol final tasks for `r003_final_query_loop_matryoshka_t3_a20__loop3`; no missing, duplicate, NaN, failed, timeout, or partial result rows were found.
+- The scoreboard was regenerated under the tightened acceptance policy.
+- Candidate track: `fusion_diagnostic`, because the run uses `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, and frozen-standard weighted fusion.
+- Per-task `ndcg_at_10` deltas vs frozen standard:
+  - `SciFact`: `+0.00181`
+  - `NFCorpus`: `+0.00227`
+  - `SCIDOCS`: `+0.00186`
+  - `FiQA2018`: `+0.00129`
+  - `ArguAna`: `+0.00019`
+  - `Touche2020`: `-0.00045`
+  - `TRECCOVID`: `+0.01152`
+- Aggregate:
+  - valid tasks: `7/7`
+  - diagnostic tasks won at `+0.001`: `5/7`
+  - tasks at standalone main `+0.002` margin: `2/7`
+  - min delta: `-0.00045`
+  - mean delta: `+0.00264`
+  - `minimal_positive_signal=false`
+  - `fusion_diagnostic_pass=false`
+  - `main_goal_success=false`
+  - `publishable_score_candidate=false`
+- Failure modes:
+  - `ArguAna` did not clear the weak diagnostic `+0.001` threshold.
+  - `Touche2020` regressed below the frozen standard baseline.
+  - The run is a frozen-standard fusion diagnostic and cannot count as `standalone_main` even if it had passed numerically.
+- Decision: no goal-success claim and no new batch submission in this step.
