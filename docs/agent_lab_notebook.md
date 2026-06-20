@@ -365,3 +365,64 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `4960334`
   - Postprocess dependency: `afterany:4960330:4960331:4960332:4960333`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_004_dev/scoreboard.json`.
+
+## 2026-06-20 Batch 004 Dev Standalone Result
+
+- `batch_004_dev` completed Slurm-native postprocess:
+  - eval jobs: `4960330`, `4960331`, `4960332`, `4960333`
+  - postprocess job: `4960334`
+  - marker: `outputs/goal/runs/batch_004_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_004_dev/scoreboard.json`
+- A local `goal_status.py --batch-id batch_004_dev --update-state` refresh attempt hung in Slurm status querying and was terminated. The postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; all candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r004_standalone_loop_matryoshka_t3__loop3`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.00732`, mean delta `-0.00253`, tasks won/lost `1/6`, valid tasks `4/7`.
+    - Dev deltas: `SciFact +0.00011`, `NFCorpus -0.00408`, `SCIDOCS +0.00118`, `FiQA2018 -0.00732`; `ArguAna`, `Touche2020`, and `TRECCOVID` were not evaluated by design.
+  - `r004_standalone_loop_matryoshka_t4__loop4`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.00770`, mean delta `-0.00278`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact +0.00008`, `NFCorpus -0.00419`, `SCIDOCS +0.00068`, `FiQA2018 -0.00770`; three final-only tasks were not evaluated by design.
+  - `r004_standalone_loop_matryoshka_t2__loop2`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.00853`, mean delta `-0.00383`, tasks won/lost `1/6`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.00344`, `NFCorpus -0.00477`, `SCIDOCS +0.00140`, `FiQA2018 -0.00853`; three final-only tasks were not evaluated by design.
+  - `r004_standalone_recurrent_matryoshka_t3__loop3`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.38973`, mean delta `-0.21850`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.38973`, `NFCorpus -0.15960`, `SCIDOCS -0.11732`, `FiQA2018 -0.20735`; three final-only tasks were not evaluated by design.
+- Decision: `main_goal_success=false`. The standalone mean-pool loopwise checkpoint did not show a viable dev signal as an independent scorer, and recurrent mean-pool loopwise scoring was much worse on dev tasks.
+
+## 2026-06-20 Batch 005 Dev Standalone Exploration
+
+- Parent decision: continue with exactly one dev-only standalone batch using existing checkpoints that were not covered by `batch_004_dev`; do not use final-task results to tune the next candidate.
+- Created `experiments/batches/batch_005_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Dev tasks:
+  - `SciFact`
+  - `NFCorpus`
+  - `FiQA2018`
+  - `SCIDOCS`
+- Predeclared standalone candidates:
+  - `r005_standalone_loop_final_t10`: existing `loop_final_mean_pool` checkpoint, fixed `loop_idx=10`.
+  - `r005_standalone_loop_final_recurrent_t10`: existing `loop_final_recurrent_mean_pool` checkpoint, fixed `loop_idx=10`.
+  - `r005_standalone_loop_final_recurrent_no_memory_t10`: existing `loop_final_recurrent_no_memory` checkpoint, fixed `loop_idx=10`.
+  - `r005_standalone_matryoshka_recurrent_no_memory_t3`: existing `loop_matryoshka_recurrent_no_memory` checkpoint, fixed `loop_idx=3`.
+- Guardrails:
+  - No training.
+  - No new retrieval method or architecture change.
+  - No frozen-standard checkpoint, frozen-standard score, `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, weighted standard+loop concatenation, or score interpolation in candidate scoring.
+  - Candidate rule is global per run across all dev tasks.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_005_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_005_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_005_dev.yaml` passed.
+  - A first real submit without scheduler env failed before any job was submitted because Slurm required a partition option.
+  - A second real submit inside the sandbox reached Slurm but failed before any job was submitted with `Operation not permitted` on the Slurm stream socket.
+  - The final submit was rerun outside the sandbox through the same `scripts/goal_submit_batch.py --submit --submit-postprocess` wrapper.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job IDs:
+    - `r005_standalone_loop_final_t10`: `4989172`
+    - `r005_standalone_loop_final_recurrent_t10`: `4989173`
+    - `r005_standalone_loop_final_recurrent_no_memory_t10`: `4989174`
+    - `r005_standalone_matryoshka_recurrent_no_memory_t3`: `4989175`
+  - Postprocess job ID: `4989176`
+  - Postprocess dependency: `afterany:4989172:4989173:4989174:4989175`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_005_dev/scoreboard.json`.
