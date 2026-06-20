@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Watch a submitted goal batch and resume only after jobs are terminal."""
+"""Optionally watch a submitted goal batch from a login-node session.
+
+Prefer Slurm-native postprocessing via goal_submit_batch.py --submit-postprocess
+on HPC systems that clean up tmux/nohup jobs when SSH or VSCode sessions close.
+"""
 
 import argparse
 import json
@@ -34,7 +38,14 @@ def now_utc() -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Poll an existing goal batch until Slurm jobs reach terminal state.")
+    parser = argparse.ArgumentParser(
+        description="Poll an existing goal batch until Slurm jobs reach terminal state.",
+        epilog=(
+            "Warning: this login-node watcher is optional. Some HPCs kill tmux/nohup "
+            "processes when SSH or VSCode sessions close. Prefer Slurm dependency "
+            "postprocessing with goal_submit_batch.py --submit-postprocess."
+        ),
+    )
     parser.add_argument("--state", default="outputs/goal/state.json", help="Goal state JSON path.")
     parser.add_argument("--batch-id", required=True, help="Submitted batch id to watch.")
     parser.add_argument("--interval-seconds", type=float, default=600, help="Polling interval in seconds.")
@@ -278,6 +289,12 @@ def main() -> None:
     plan = load_submission_plan(args.batch_id)
     run_dir = ensure_dir(batch_dir(args.batch_id))
     log_path = run_dir / "watcher.log"
+    warning = (
+        "Login-node watchers may be killed by HPC session cleanup; "
+        "prefer Slurm dependency postprocessing with goal_submit_batch.py --submit-postprocess."
+    )
+    print("WARNING: {}".format(warning), file=sys.stderr)
+    append_log(log_path, warning)
     append_log(log_path, "Starting watcher mode={} batch={} jobs={}".format(args.mode, args.batch_id, len(plan.get("jobs", []))))
 
     deadline = time.time() + float(args.max_hours) * 3600.0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely dry-run or submit Slurm train/eval jobs from a batch manifest."""
+"""Safely dry-run or submit Slurm train/eval/postprocess jobs from a batch manifest."""
 
 import argparse
 import os
@@ -33,6 +33,13 @@ SAFE_RUNTIME_ENV_KEYS = [
     "TOKENIZERS_PARALLELISM",
     "LD_LIBRARY_PATH",
 ]
+POSTPROCESS_RUNTIME_ENV_KEYS = [
+    "CONDA_ENV",
+    "DEFAULT_CONDA_ENV",
+    "PYTHON_BIN",
+    "CONDA_SH",
+    "LD_LIBRARY_PATH",
+]
 
 ALLOWED_SBATCH_ARGS = {
     "--account",
@@ -57,6 +64,20 @@ ALLOWED_SBATCH_ARGS = {
     "-J",
 }
 BANNED_SBATCH_ARGS = {"--export", "--wrap", "--array", "--dependency", "-d"}
+POSTPROCESS_EXCLUDED_SBATCH_ARGS = {
+    "--time",
+    "-t",
+    "--cpus-per-task",
+    "-c",
+    "--mem",
+    "--gres",
+    "--nodes",
+    "-N",
+    "--ntasks",
+    "-n",
+    "--job-name",
+    "-J",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,12 +88,26 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--submit", action="store_true", help="Actually call sbatch.")
     parser.add_argument("--resume", action="store_true", help="Allow existing per-run output directories.")
     parser.add_argument("--state", default="outputs/goal/state.json")
+    parser.add_argument(
+        "--submit-postprocess",
+        action="store_true",
+        help="Add one Slurm dependency job that collects and scores after all eval jobs reach terminal state.",
+    )
     return parser.parse_args()
 
 
 def safe_runtime_exports() -> Dict[str, str]:
     exports: Dict[str, str] = {}
     for key in SAFE_RUNTIME_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            exports[key] = value
+    return exports
+
+
+def safe_postprocess_runtime_exports() -> Dict[str, str]:
+    exports: Dict[str, str] = {}
+    for key in POSTPROCESS_RUNTIME_ENV_KEYS:
         value = os.environ.get(key)
         if value:
             exports[key] = value
@@ -92,11 +127,12 @@ def format_export(base: Dict[str, Any]) -> str:
     return ",".join(parts)
 
 
-def sbatch_args_from_env() -> List[str]:
+def sbatch_args_from_env(excluded_options: Optional[Sequence[str]] = None) -> List[str]:
     raw = os.environ.get("SBATCH_ARGS", "")
     if not raw.strip():
         return []
     tokens = shlex.split(raw)
+    excluded = set(excluded_options or [])
     validated: List[str] = []
     idx = 0
     while idx < len(tokens):
@@ -106,12 +142,19 @@ def sbatch_args_from_env() -> List[str]:
             raise SystemExit("SBATCH_ARGS may not include {}".format(option))
         if option not in ALLOWED_SBATCH_ARGS:
             raise SystemExit("SBATCH_ARGS contains unsupported option {}".format(option))
-        validated.append(token)
+        skip_option = option in excluded
+        if not skip_option:
+            validated.append(token)
         if "=" not in token and idx + 1 < len(tokens) and not tokens[idx + 1].startswith("-"):
             idx += 1
-            validated.append(tokens[idx])
+            if not skip_option:
+                validated.append(tokens[idx])
         idx += 1
     return validated
+
+
+def shell_join(command: Sequence[str]) -> str:
+    return " ".join(shlex.quote(str(part)) for part in command)
 
 
 def run_sbatch(command: Sequence[str], dry_run: bool) -> Optional[str]:
@@ -153,8 +196,8 @@ def require_bool(value: Any, field_name: str, default: bool = False) -> bool:
     return parsed
 
 
-def assert_output_dirs_available(plan_jobs: List[Dict[str, Any]], resume: bool) -> None:
-    if resume:
+def assert_output_dirs_available(plan_jobs: List[Dict[str, Any]], resume: bool, dry_run: bool) -> None:
+    if resume or dry_run:
         return
     collisions: List[str] = []
     for job in plan_jobs:
@@ -280,6 +323,54 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def build_postprocess_exports(args: argparse.Namespace, manifest: Dict[str, Any], batch_id: str) -> Dict[str, Any]:
+    defaults = manifest.get("defaults") or {}
+    baseline = manifest.get("baseline") or {}
+    output_dir = Path("outputs/goal/runs") / batch_id
+    auto_codex = os.environ.get("AUTO_CODEX", "false").strip().lower()
+    if auto_codex not in {"true", "false"}:
+        raise SystemExit("AUTO_CODEX must be true or false when submitting postprocess jobs.")
+    exports: Dict[str, Any] = safe_postprocess_runtime_exports()
+    exports.update(
+        {
+            "GOAL_SUBMIT_BATCH": "1",
+            "BATCH_ID": batch_id,
+            "STATE_PATH": args.state,
+            "EVAL_ROOT": defaults.get("eval_output_base", "outputs/goal/eval"),
+            "BASELINE_CSV": baseline.get("summary_csv", "outputs/baselines/standard_frozen/results_summary.csv"),
+            "METRIC": manifest.get("primary_metric", "ndcg_at_10"),
+            "MARGIN": manifest.get("win_margin", 0.001),
+            "OUTPUT_DIR": str(output_dir),
+            "AUTO_CODEX": auto_codex,
+        }
+    )
+    return exports
+
+
+def build_postprocess_command(plan: Dict[str, Any], exports: Dict[str, Any]) -> Dict[str, Any]:
+    eval_job_ids = []
+    for job in plan["jobs"]:
+        eval_job_id = job.get("eval_job_id") or "<eval_job_id:{}>".format(job["run_id"])
+        eval_job_ids.append(str(eval_job_id))
+    if not eval_job_ids:
+        raise SystemExit("Cannot build postprocess dependency without eval jobs.")
+    dependency = "afterany:{}".format(":".join(eval_job_ids))
+    scheduler_args = sbatch_args_from_env(excluded_options=POSTPROCESS_EXCLUDED_SBATCH_ARGS)
+    command = ["sbatch", "--parsable"] + scheduler_args + [
+        "--dependency={}".format(dependency),
+        "--export={}".format(format_export(exports)),
+        "scripts/slurm_postprocess.sbatch",
+    ]
+    return {
+        "enabled": True,
+        "job_id": None,
+        "dependency": dependency,
+        "command": command,
+        "exports": sorted(exports),
+        "output_dir": str(exports["OUTPUT_DIR"]),
+    }
+
+
 def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_path: Path) -> None:
     state: Dict[str, Any] = {}
     if state_path.exists():
@@ -291,6 +382,8 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_pat
         "manifest": plan["manifest"],
         "plan": str(plan_path),
         "dry_run": dry_run,
+        "postprocess": bool((plan.get("postprocess") or {}).get("enabled")),
+        "postprocess_job_id": plan.get("postprocess_job_id"),
     }
     open_jobs = []
     for job in plan["jobs"]:
@@ -314,6 +407,21 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_pat
                 "status": "dry_run" if dry_run else "submitted",
             }
         )
+    postprocess = plan.get("postprocess") or {}
+    if postprocess.get("enabled"):
+        open_jobs.append(
+            {
+                "batch_id": plan["batch_id"],
+                "run_id": plan["batch_id"],
+                "type": "postprocess",
+                "job_id": postprocess.get("job_id"),
+                "depends_on": postprocess.get("dependency"),
+                "status": "dry_run" if dry_run else "submitted",
+            }
+        )
+        state["postprocess_job_id"] = postprocess.get("job_id")
+    else:
+        state.pop("postprocess_job_id", None)
     state["open_jobs"] = open_jobs
     if dry_run:
         baseline = state.get("baseline") or {}
@@ -322,7 +430,10 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_pat
         else:
             state["next_required_action"] = "Review dry-run plan, then submit only if the manifest allows it."
     else:
-        state["next_required_action"] = "Wait for jobs, then collect results."
+        if postprocess.get("enabled"):
+            state["next_required_action"] = "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard."
+        else:
+            state["next_required_action"] = "Wait for jobs, then collect results."
     atomic_write_json(state_path, state)
 
 
@@ -344,7 +455,7 @@ def main() -> None:
         raise SystemExit("Refusing --submit without a frozen baseline.")
 
     plan = build_plan(manifest_path, manifest)
-    assert_output_dirs_available(plan["jobs"], args.resume)
+    assert_output_dirs_available(plan["jobs"], args.resume, dry_run=dry_run)
 
     batch_dir = ensure_dir(Path("outputs/goal/runs") / manifest["batch_id"])
     manifest_copy = batch_dir / ("batch_manifest.dry_run.yaml" if dry_run else "batch_manifest.submitted.yaml")
@@ -367,6 +478,21 @@ def main() -> None:
         eval_job_id = run_sbatch(eval_command, dry_run=dry_run)
         job["eval_job_id"] = eval_job_id
 
+    if args.submit_postprocess:
+        if not dry_run:
+            missing_eval_ids = [job["run_id"] for job in plan["jobs"] if not job.get("eval_job_id")]
+            if missing_eval_ids:
+                raise RuntimeError("Cannot submit postprocess job without eval job ids: {}".format(", ".join(missing_eval_ids)))
+        postprocess_exports = build_postprocess_exports(args, manifest, manifest["batch_id"])
+        postprocess = build_postprocess_command(plan, postprocess_exports)
+        postprocess_job_id = run_sbatch(postprocess["command"], dry_run=dry_run)
+        postprocess["job_id"] = postprocess_job_id
+        plan["postprocess"] = postprocess
+        plan["postprocess_job_id"] = postprocess_job_id
+    else:
+        plan["postprocess"] = {"enabled": False, "job_id": None}
+        plan["postprocess_job_id"] = None
+
     plan["dry_run"] = dry_run
     atomic_write_json(plan_path, plan)
     update_state(Path(args.state), plan, dry_run=dry_run, plan_path=plan_path)
@@ -377,6 +503,11 @@ def main() -> None:
     for job in plan["jobs"]:
         mode = "eval_only" if job.get("eval_only") else "train_eval"
         print("- {} mode={} train_job={} eval_job={}".format(job["run_id"], mode, job["train_job_id"], job["eval_job_id"]))
+    postprocess = plan.get("postprocess") or {}
+    if postprocess.get("enabled"):
+        print("- postprocess job={}".format(postprocess.get("job_id")))
+        if dry_run:
+            print("Postprocess sbatch: {}".format(shell_join(postprocess["command"])))
 
 
 if __name__ == "__main__":

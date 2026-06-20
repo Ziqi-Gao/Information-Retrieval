@@ -125,3 +125,92 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `r002_query_loop_matryoshka_t3_a20`: eval job `4957411`
 - Scheduler options were provided through `SBATCH_ARGS` for this local cluster; they were not written into tracked manifests.
 - Post-submit watcher fix: `scripts/goal_watch_batch.py` now marks state terminal before launching Codex so codex-mode resume cannot be overwritten by the watcher after Codex returns.
+- Long-running codex-mode watcher is running in tmux session `goal_watch_batch_002` after plain `nohup` was not persistent in this execution environment.
+- Watcher files:
+  - `outputs/goal/runs/batch_002_dev/watcher.log`
+  - `outputs/goal/runs/batch_002_dev/watcher.tmux.log`
+  - `outputs/goal/runs/batch_002_dev/watcher_status.json`
+  - `outputs/goal/runs/batch_002_dev/codex_resume_after_terminal.md`
+- First codex-mode watcher poll found all four eval jobs running.
+
+## 2026-06-20 Round 002 Dev Results
+
+- Watcher check after resume:
+  - `tmux` session `goal_watch_batch_002` was no longer present.
+  - No `goal_watch_batch.py` or `codex exec` watcher process was found.
+  - `watcher_status.json` remained from an earlier short notify-mode timeout, so it was not used as proof of current watcher activity.
+- Status refresh through `scripts/goal_status.py --update-state` found all four `batch_002_dev` eval jobs completed.
+- Collection through `scripts/goal_collect.py` wrote 16 valid rows to `outputs/goal/runs/batch_002_dev/collected_results.csv`.
+- Scoreboard through `scripts/goal_scoreboard.py` wrote `outputs/goal/runs/batch_002_dev/scoreboard.csv` and `.json`.
+- No invalid dev-task rows were found; all four candidates covered `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`.
+- Scoreboard correctly marks all candidates `pass_all_tasks = false` because this was a 4-task dev batch and does not cover `ArguAna`, `Touche2020`, or `TRECCOVID`.
+- Dev-only deltas against frozen standard:
+  - `r002_query_loop_matryoshka_t3_a20__loop3`: wins 4/4 dev tasks, min delta `+0.00150`, mean delta `+0.00245`.
+  - `r002_both_loop_matryoshka_t3_a15__loop3`: wins 4/4 dev tasks, min delta `+0.00140`, mean delta `+0.00193`.
+  - `r002_both_loop_matryoshka_t3_a20__loop3`: wins 4/4 dev tasks, min delta `+0.00129`, mean delta `+0.00181`.
+  - `r002_query_loop_matryoshka_t3_a10__loop3`: wins 3/4 dev tasks, min delta `+0.00070`, mean delta `+0.00165`; misses the margin on `SCIDOCS`.
+- Parent decision: Round 002 gives a stronger dev-only signal than Round 001, with `r002_query_loop_matryoshka_t3_a20__loop3` as the leading pre-registered candidate. It still cannot support a final claim without full final-task coverage.
+- Resume note:
+  - Plain `python` was unavailable in the interactive shell; local collection and scoring were rerun with `python3`.
+  - A direct `scripts/goal_status.py --state outputs/goal/state.json --update-state` retry timed out because Slurm socket access returned `Operation not permitted` in the current sandbox. Existing state already showed the four `batch_002_dev` eval jobs terminal, and local result files were collected through the goal scripts.
+  - A read-only result analyst independently confirmed the same Round 002 deltas, missing final tasks, and final-validation recommendation.
+
+## 2026-06-20 Round 003 Final Validation Dry-Run Plan
+
+- Parent decision: promote only the leading Round 002 dev candidate to a final-validation dry-run plan. Do not run another dev batch unless final validation fails or the user asks for more dev exploration.
+- Round 003 manifest: `experiments/batches/batch_003_final.yaml`.
+- Predeclared final candidate:
+  - `r003_final_query_loop_matryoshka_t3_a20__loop3`: query-only fusion, alpha `0.20`, loop index `3`, all seven protocol final tasks.
+- Candidate rule is global for every final task: same fusion scope, alpha, and loop index. No per-task loop, alpha, or scope selection is allowed.
+- Manifest safety:
+  - `purpose: final`
+  - exact protocol final task order
+  - `candidate_loop_indices: [3]`
+  - `budget.allow_submit: false`
+- Validation:
+  - `scripts/goal_validate_manifest.py experiments/batches/batch_003_final.yaml --json` passed.
+  - System `python3` could validate but failed dry-run writing because its PyYAML is too old for `sort_keys=False`.
+  - Dry-run was rerun through the project environment loaded by `scripts/slurm_env.sh` and passed.
+- Dry-run output:
+  - `outputs/goal/runs/batch_003_final/dry_run_plan.json`
+  - `outputs/goal/runs/batch_003_final/batch_manifest.dry_run.yaml`
+- No new Slurm jobs were submitted.
+- Next action: review the final dry-run plan. Submit final validation only after explicit user approval and after enabling `allow_submit` or otherwise providing an approved submit path.
+
+## 2026-06-20 Slurm-Native Postprocess Framework
+
+- Motivation: this HPC may kill `tmux`, `nohup`, and other login-node watcher processes when the SSH or VSCode session closes.
+- Parent decision: do not rely on long-running login-node watchers for unattended autonomous workflow progress.
+- Added `scripts/slurm_postprocess.sbatch`:
+  - CPU-only Slurm job with 1 CPU, 8G memory, and 1 hour wall time.
+  - Runs deterministic status refresh, collection, and scoreboard commands after eval jobs are terminal.
+  - Writes `postprocess_done.json` on success and `postprocess_failed.json` on failure under `outputs/goal/runs/<batch_id>/`.
+  - Does not train, evaluate MTEB, submit new jobs, overwrite baselines, or change metric semantics.
+- Updated `scripts/goal_submit_batch.py`:
+  - Added `--submit-postprocess`.
+  - Dry-run records and prints the postprocess `sbatch` command.
+  - Real submit will submit one postprocess dependency job with `afterany:<all eval job ids>`.
+  - Postprocess export uses `--export=NONE` plus a narrow allowlist; token/API/SSH/cloud credential variables are not exported.
+- Updated `scripts/goal_status.py` so train, eval, and postprocess jobs are all displayed and written to state.
+- Updated watcher docs and runtime warning:
+  - `scripts/goal_watch_batch.py` remains available as an optional local helper.
+  - Slurm dependency postprocess is the preferred automation path because Slurm jobs survive VSCode logout.
+- No training, evaluation, real Slurm submission, baseline overwrite, or GitHub push was performed for this framework change.
+
+## 2026-06-20 Autonomous Loop Resume Check
+
+- Current state points to `batch_003_final`.
+- `batch_003_final` is dry-run only:
+  - plan: `outputs/goal/runs/batch_003_final/dry_run_plan.json`
+  - manifest: `experiments/batches/batch_003_final.yaml`
+  - no `outputs/goal/runs/batch_003_final/submission_plan.json`
+  - no Slurm eval or postprocess job IDs
+- Required status command outcome:
+  - `python scripts/goal_status.py --state outputs/goal/state.json --update-state` could not run because plain `python` is unavailable in this shell.
+  - The project Python fallback reached `scripts/goal_status.py`, which correctly failed because `batch_003_final` has no submitted plan.
+- Postprocess search:
+  - no `postprocess_done.json` was found under `outputs/goal/runs/`
+  - no `postprocess_failed.json` was found under `outputs/goal/runs/`
+  - no completed Slurm-native postprocess batch is available to analyze
+- Latest submitted batch remains `batch_002_dev`; `scripts/goal_status.py --batch-id batch_002_dev --json` shows its four eval jobs completed, but that batch predates Slurm-native postprocess submission and has no postprocess job.
+- Stop condition: no new batch was created or submitted. Next action remains review of the `batch_003_final` dry-run plan and explicit approval before any final validation submission.

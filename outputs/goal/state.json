@@ -5,16 +5,28 @@
     "sha256": "41984b40e07ef7160444172fcaf895bcf74b42e44de5c8a700c3ac942cdbdee5",
     "status": "frozen"
   },
-  "best_candidate": null,
+  "best_candidate": {
+    "batch_id": "batch_002_dev",
+    "candidate_id": "r002_query_loop_matryoshka_t3_a20__loop3",
+    "dev_tasks_valid": 4,
+    "dev_tasks_won": 4,
+    "mean_delta": 0.002450000000000001,
+    "metric": "ndcg_at_10",
+    "min_delta": 0.0015000000000000013,
+    "pass_all_tasks": false,
+    "reason": "Best dev-only candidate; ArguAna, Touche2020, and TRECCOVID were not evaluated in batch_002_dev.",
+    "run_id": "r002_query_loop_matryoshka_t3_a20",
+    "source_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json"
+  },
   "budget": {
     "max_concurrent_gpu_jobs": 4,
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_002_dev",
-    "dry_run": false,
-    "manifest": "experiments/batches/batch_002_dev.yaml",
-    "plan": "outputs/goal/runs/batch_002_dev/submission_plan.json"
+    "batch_id": "batch_003_final",
+    "dry_run": true,
+    "manifest": "experiments/batches/batch_003_final.yaml",
+    "plan": "outputs/goal/runs/batch_003_final/dry_run_plan.json"
   },
   "final_tasks": [
     "SciFact",
@@ -25,53 +37,51 @@
     "Touche2020",
     "TRECCOVID"
   ],
-  "last_scoreboard": "outputs/goal/runs/batch_001_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json",
   "last_watcher": {
-    "batch_id": "batch_001_dev",
-    "path": "outputs/goal/runs/batch_001_dev/watcher_status.json",
-    "updated_at": "2026-06-20T02:06:32Z"
+    "batch_id": "batch_002_dev",
+    "path": "outputs/goal/runs/batch_002_dev/watcher_status.json",
+    "updated_at": "2026-06-20T02:47:51Z"
   },
-  "next_required_action": "Wait for jobs, then collect results.",
+  "last_decision": {
+    "batch_id": "batch_002_dev",
+    "decided_at": "2026-06-20T02:56:12Z",
+    "decision": "Promote the leading dev-only candidate to a final-validation dry-run plan; do not submit without explicit approval.",
+    "next_manifest": "experiments/batches/batch_003_final.yaml",
+    "next_plan": "outputs/goal/runs/batch_003_final/dry_run_plan.json"
+  },
+  "last_status_attempt": {
+    "attempted_at": "2026-06-20T03:11:37Z",
+    "command": "python scripts/goal_status.py --state outputs/goal/state.json --update-state",
+    "fallback_command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --update-state",
+    "result": "failed because current batch batch_003_final is dry-run only and has no outputs/goal/runs/batch_003_final/submission_plan.json"
+  },
+  "last_postprocess_check": {
+    "checked_at": "2026-06-20T03:11:37Z",
+    "latest_batch": "batch_003_final",
+    "latest_batch_status": "dry_run_only",
+    "latest_submitted_batch": "batch_002_dev",
+    "postprocess_done": false,
+    "postprocess_failed": false,
+    "result": "No submitted batch with Slurm-native postprocess output was found. batch_002_dev eval jobs are completed but predate postprocess submission."
+  },
+  "next_required_action": "Review outputs/goal/runs/batch_003_final/dry_run_plan.json; submit final validation only after explicit user approval and an allowed submit manifest.",
   "open_jobs": [
     {
-      "batch_id": "batch_002_dev",
+      "batch_id": "batch_003_final",
       "depends_on": null,
-      "job_id": "4957408",
-      "run_id": "r002_both_loop_matryoshka_t3_a15",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_002_dev",
-      "depends_on": null,
-      "job_id": "4957409",
-      "run_id": "r002_both_loop_matryoshka_t3_a20",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_002_dev",
-      "depends_on": null,
-      "job_id": "4957410",
-      "run_id": "r002_query_loop_matryoshka_t3_a10",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_002_dev",
-      "depends_on": null,
-      "job_id": "4957411",
-      "run_id": "r002_query_loop_matryoshka_t3_a20",
-      "status": "submitted",
+      "job_id": null,
+      "run_id": "r003_final_query_loop_matryoshka_t3_a20",
+      "status": "dry_run",
       "type": "eval"
     }
   ],
-  "phase": "SUBMIT_BATCH",
+  "phase": "DRY_RUN_SUBMIT",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "2969446486c07ec9f3121eb7c8d7e21b5acfb06d",
-    "dirty": false
+    "commit": "abdfa999967f079ba3a6a88fd7f9889bfc0c6781",
+    "dirty": true
   },
   "win_margin": 0.001
 }

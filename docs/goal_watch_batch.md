@@ -2,6 +2,16 @@
 
 `scripts/goal_watch_batch.py` is a lightweight local watcher for submitted goal batches. It polls Slurm through `scripts/goal_status.py` and stays silent from an LLM perspective until the batch reaches terminal state.
 
+This watcher is optional. On this HPC, `tmux`, `nohup`, and other login-node child processes may be killed when the SSH or VSCode session closes. Do not rely on it for unattended automation.
+
+Preferred automation is Slurm-native postprocessing:
+
+```bash
+python scripts/goal_submit_batch.py experiments/batches/<batch>.yaml --submit --submit-postprocess
+```
+
+That submits a CPU-only dependency job with `afterany:<all_eval_job_ids>`, so deterministic collection and scoring can run after eval jobs finish without a persistent SSH, VSCode, `tmux`, or `nohup` session.
+
 It is infrastructure only. It does not submit Slurm jobs, run training, run MTEB evaluation, collect results, score results, modify the frozen baseline, or change metric semantics.
 
 ## Notify Mode
@@ -17,7 +27,7 @@ python scripts/goal_watch_batch.py \
   --mode notify
 ```
 
-When the batch is terminal, run the printed commands to refresh status, collect results, and score against the frozen baseline.
+When the batch is terminal, run the printed commands to refresh status, collect results, and score against the frozen baseline. For unattended runs, prefer `--submit-postprocess` instead.
 
 ## Codex Mode
 
@@ -52,6 +62,34 @@ outputs/goal/runs/<batch_id>/.codex_resume_launched
 ```
 
 Pass `--force-codex` only when you intentionally want to launch Codex again after inspecting the prior output.
+
+Codex mode also depends on the local watcher process surviving. If the HPC cleans up login-node processes after logout, use Slurm postprocessing for collect/score and resume Codex manually from `outputs/goal/runs/<batch_id>/scoreboard.json`.
+
+## Slurm Postprocess Alternative
+
+`scripts/slurm_postprocess.sbatch` is the preferred deterministic automation path. It runs on a compute node as a normal Slurm job, not as a login-node watcher.
+
+The postprocess job runs:
+
+```bash
+python scripts/goal_status.py --state "$STATE_PATH" --batch-id "$BATCH_ID" --update-state
+python scripts/goal_collect.py --batch-id "$BATCH_ID" --eval-root "$EVAL_ROOT" --output "$OUTPUT_DIR/collected_results.csv"
+python scripts/goal_scoreboard.py --baseline "$BASELINE_CSV" --results "$OUTPUT_DIR/collected_results.csv" --metric "$METRIC" --margin "$MARGIN" --output-csv "$OUTPUT_DIR/scoreboard.csv" --output-json "$OUTPUT_DIR/scoreboard.json"
+```
+
+Success marker:
+
+```text
+outputs/goal/runs/<batch_id>/postprocess_done.json
+```
+
+Failure marker:
+
+```text
+outputs/goal/runs/<batch_id>/postprocess_failed.json
+```
+
+Full autonomous next-batch submission still requires a later Codex resume and explicit decision logic. Deterministic collect/score does not require Codex and can be Slurm-native.
 
 ## Safety Checks
 

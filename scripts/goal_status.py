@@ -130,6 +130,22 @@ def main() -> None:
             }
             rows.append(row)
 
+    postprocess = plan.get("postprocess") or {}
+    postprocess_job_id = plan.get("postprocess_job_id") or postprocess.get("job_id")
+    if postprocess.get("enabled") or postprocess_job_id:
+        status = job_status(postprocess_job_id)
+        rows.append(
+            {
+                "batch_id": batch_id,
+                "run_id": batch_id,
+                "type": "postprocess",
+                "job_id": postprocess_job_id,
+                "status": "dry_run" if plan.get("dry_run") and not postprocess_job_id else status["status"],
+                "source": status.get("source"),
+                "raw_state": status.get("raw_state"),
+            }
+        )
+
     result = {"batch_id": batch_id, "repo": repo_status(), "jobs": rows}
     if args.update_state and state_path.exists():
         state["repo"] = repo_status()
