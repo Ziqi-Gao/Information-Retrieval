@@ -480,3 +480,21 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `4991230`
   - Postprocess dependency: `afterany:4991226:4991228`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_006_dev/scoreboard.json`.
+
+## 2026-06-20 Batch 006 Dev Standalone Result
+
+- `batch_006_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
+    - `r006_loop_matryoshka_first_token_t7`: train `4991224`, eval `4991226`
+    - `r006_loop_matryoshka_token_concat_t7`: train `4991227`, eval `4991228`
+  - postprocess job: `4991230`
+  - marker: `outputs/goal/runs/batch_006_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_006_dev/scoreboard.json`
+- A local `goal_status.py --batch-id batch_006_dev --update-state` refresh attempt hung in Slurm `squeue` status querying and was terminated. The postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; all candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r006_loop_matryoshka_first_token_t7__loop7`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.01126`, mean delta `-0.00112`, tasks won/lost `2/5`, valid tasks `4/7`.
+    - Dev deltas: `SciFact +0.00419`, `NFCorpus +0.00359`, `SCIDOCS -0.00102`, `FiQA2018 -0.01126`; `ArguAna`, `Touche2020`, and `TRECCOVID` were not evaluated by design.
+  - `r006_loop_matryoshka_token_concat_t7__loop7`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, min delta `-0.03403`, mean delta `-0.02160`, tasks won/lost `0/7`, valid tasks `4/7`.
+    - Dev deltas: `SciFact -0.03403`, `NFCorpus -0.01153`, `SCIDOCS -0.00831`, `FiQA2018 -0.03253`; three final-only tasks were not evaluated by design.
+- Decision: `main_goal_success=false`. The first-token memory variant showed a narrow positive dev signal on `SciFact` and `NFCorpus`, but it regressed on `SCIDOCS` and `FiQA2018`; token-concat regressed on all four dev tasks. Under the current guardrails, the already-supported standalone checkpoint/evaluation probes and the allowed parameter-free memory-mode training probes have not produced a valid standalone dev path to final validation without a new research method or protocol change, so no new batch was submitted.
