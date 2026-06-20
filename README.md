@@ -130,6 +130,12 @@ outputs/                  checkpoints, MTEB results, plots, summaries
 slurm_logs/               cluster stdout/stderr logs
 ```
 
+## Goal Acceptance Tracks
+
+The autonomous goal protocol separates score reports into `standalone_main`, `fusion_diagnostic`, and `diagnostic` tracks. Any run that uses frozen-standard embeddings, scores, weighted standard+candidate concatenation, `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, or another explicit ensemble with the frozen standard model is `fusion_diagnostic`.
+
+Fusion diagnostics may be evaluated and reported, but they cannot trigger main goal success. Main success requires a `standalone_main` final candidate with all seven protocol tasks valid, every `ndcg_at_10` delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression. The old `+0.001` all-task threshold is only `minimal_positive_signal`.
+
 ## Installation
 
 ```bash

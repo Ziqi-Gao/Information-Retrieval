@@ -2,8 +2,10 @@
 """Validate autonomous experiment batch manifests before submission."""
 
 import argparse
+import copy
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -24,6 +26,32 @@ from goal_common import (
 
 
 VALID_PURPOSES = {"dev", "final", "smoke"}
+VALID_CLAIM_TRACKS = {"standalone_main", "fusion_diagnostic", "diagnostic"}
+FUSION_EVAL_KEYS = {"fusion_standard_checkpoint_dir", "fusion_alpha", "fusion_scope"}
+FUSION_TEXT_MARKERS = [
+    "standard+loop",
+    "standard + loop",
+    "weighted concat",
+    "weighted concatenation",
+    "standard embedding",
+    "standard embeddings",
+    "standard score",
+    "standard scores",
+    "frozen standard plus",
+    "ensemble with the frozen standard",
+    "explicit ensemble",
+    "score fusion",
+    "fusion_scope",
+    "fusion_alpha",
+]
+STANDARD_SCORING_KEYS = {
+    "standard_checkpoint_dir",
+    "standard_score",
+    "standard_scores",
+    "standard_embedding",
+    "standard_embeddings",
+    "fusion_standard_checkpoint_dir",
+}
 
 
 def known_versions() -> List[str]:
@@ -39,6 +67,86 @@ def known_versions() -> List[str]:
 
 def _add(errors: List[str], message: str) -> None:
     errors.append(message)
+
+
+def _present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return bool(value)
+    return True
+
+
+def _string_values(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        values: List[str] = []
+        for key, item in value.items():
+            values.append(str(key))
+            values.extend(_string_values(item))
+        return values
+    if isinstance(value, (list, tuple, set)):
+        values = []
+        for item in value:
+            values.extend(_string_values(item))
+        return values
+    return []
+
+
+def fusion_diagnostic_evidence(experiment: Dict[str, Any]) -> List[str]:
+    """Return evidence that an experiment uses frozen-standard fusion/ensemble scoring."""
+    evidence: List[str] = []
+    eval_config = experiment.get("eval") or {}
+    for key in sorted(FUSION_EVAL_KEYS):
+        if _present(eval_config.get(key)):
+            evidence.append("eval.{}".format(key))
+
+    text = " ".join(_string_values({key: experiment.get(key) for key in [
+        "hypothesis",
+        "mechanism",
+        "candidate_rule",
+        "expected_effect",
+        "fallback",
+    ]})).lower()
+    for marker in FUSION_TEXT_MARKERS:
+        if marker in text:
+            evidence.append("text:{}".format(marker))
+    return sorted(set(evidence))
+
+
+def standard_scoring_evidence(experiment: Dict[str, Any]) -> List[str]:
+    eval_config = experiment.get("eval") or {}
+    evidence = []
+    for key, value in eval_config.items():
+        if key in STANDARD_SCORING_KEYS and _present(value):
+            evidence.append("eval.{}".format(key))
+        if isinstance(value, str) and Path(value).name == "standard" and "checkpoint" in key:
+            evidence.append("eval.{}={}".format(key, value))
+    return sorted(set(evidence))
+
+
+def explicit_claim_track(experiment: Dict[str, Any]) -> Optional[str]:
+    claim_track = experiment.get("claim_track")
+    candidate_track = experiment.get("candidate_track")
+    if claim_track is not None and candidate_track is not None and claim_track != candidate_track:
+        return "__conflicting__"
+    return claim_track if claim_track is not None else candidate_track
+
+
+def infer_claim_track(experiment: Dict[str, Any], purpose: Optional[str]) -> str:
+    explicit = explicit_claim_track(experiment)
+    if explicit in VALID_CLAIM_TRACKS:
+        return explicit
+    if fusion_diagnostic_evidence(experiment):
+        return "fusion_diagnostic"
+    if purpose == "final":
+        return "standalone_main"
+    return "diagnostic"
 
 
 def _baseline_exists(manifest: Dict[str, Any]) -> bool:
@@ -111,6 +219,7 @@ def _validate_checkpoint_dir(
 def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None) -> Dict[str, Any]:
     errors: List[str] = []
     warnings: List[str] = []
+    experiment_tracks: List[Dict[str, Any]] = []
 
     batch_id = manifest.get("batch_id")
     if not batch_id:
@@ -236,6 +345,52 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         eval_config = experiment.get("eval") or {}
         exp_tasks = parse_task_list(eval_config.get("task_names"))
         eval_only = _validate_bool_field(errors, experiment.get("eval_only"), "experiment {} eval_only".format(run_id or idx), default=False)
+        explicit_track = explicit_claim_track(experiment)
+        if explicit_track == "__conflicting__":
+            _add(errors, "experiment {} claim_track and candidate_track conflict".format(run_id or idx))
+        elif explicit_track is not None and explicit_track not in VALID_CLAIM_TRACKS:
+            _add(errors, "experiment {} claim_track must be one of {}".format(run_id or idx, ", ".join(sorted(VALID_CLAIM_TRACKS))))
+        fusion_evidence = fusion_diagnostic_evidence(experiment)
+        standard_evidence = standard_scoring_evidence(experiment)
+        candidate_track = infer_claim_track(experiment, purpose)
+        experiment_tracks.append(
+            {
+                "run_id": run_id or str(idx),
+                "candidate_track": candidate_track,
+                "fusion_diagnostic_evidence": fusion_evidence,
+            }
+        )
+        if fusion_evidence and explicit_track is None:
+            warnings.append(
+                "experiment {} inferred candidate_track=fusion_diagnostic from {}; it cannot trigger main goal success".format(
+                    run_id or idx, ", ".join(fusion_evidence)
+                )
+            )
+        if candidate_track == "standalone_main":
+            if purpose != "final":
+                _add(errors, "experiment {} standalone_main requires purpose: final".format(run_id or idx))
+            if fusion_evidence:
+                _add(
+                    errors,
+                    "experiment {} cannot be standalone_main because it uses frozen-standard fusion/ensemble evidence: {}".format(
+                        run_id or idx, ", ".join(fusion_evidence)
+                    ),
+                )
+            if standard_evidence:
+                _add(
+                    errors,
+                    "experiment {} standalone_main must not use the frozen standard checkpoint or standard score in candidate scoring: {}".format(
+                        run_id or idx, ", ".join(standard_evidence)
+                    ),
+                )
+            if version == "standard":
+                _add(errors, "experiment {} standalone_main cannot use version=standard".format(run_id or idx))
+        elif purpose == "final":
+            warnings.append(
+                "experiment {} is candidate_track={}; final results may be reported only as diagnostic, not main goal success".format(
+                    run_id or idx, candidate_track
+                )
+            )
         if "eval_all_loops" in eval_config:
             _validate_bool_field(errors, eval_config.get("eval_all_loops"), "experiment {} eval.eval_all_loops".format(run_id or idx), default=False)
         has_external_eval_checkpoint = any(
@@ -302,6 +457,7 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         "purpose": purpose,
         "baseline_present": baseline_present,
         "experiments": len(experiments),
+        "candidate_tracks": experiment_tracks,
     }
 
 
@@ -311,13 +467,105 @@ def validate_manifest(path: Path) -> Dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate a goal experiment batch manifest.")
-    parser.add_argument("manifest", help="Path to a YAML batch manifest.")
+    parser.add_argument("manifest", nargs="?", help="Path to a YAML batch manifest.")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable validation result.")
+    parser.add_argument("--self-test", action="store_true", help="Run cheap validator self-tests.")
     return parser.parse_args()
+
+
+def _fake_checkpoint(root: Path, name: str) -> str:
+    path = root / name
+    path.mkdir(parents=True)
+    (path / "loop_config.json").write_text(json.dumps({"tmax": 3, "embedding_dim": 768}), encoding="utf-8")
+    (path / "model_state.pt").write_bytes(b"placeholder")
+    return str(path)
+
+
+def self_test() -> None:
+    base_experiment = {
+        "run_id": "standalone_candidate",
+        "hypothesis": "Self-test standalone final candidate.",
+        "version": "loop_matryoshka",
+        "eval": {
+            "task_names": list(FINAL_TASKS),
+            "candidate_loop_indices": [3],
+        },
+        "risk": {"reason": "self-test"},
+    }
+    base_manifest = {
+        "batch_id": "validator_selftest",
+        "purpose": "final",
+        "primary_metric": PRIMARY_METRIC,
+        "win_margin": DEFAULT_WIN_MARGIN,
+        "baseline": {
+            "summary_csv": "outputs/baselines/standard_frozen/results_summary.csv",
+            "manifest_json": "outputs/baselines/standard_frozen/baseline_manifest.json",
+        },
+        "budget": {
+            "max_concurrent_gpu_jobs": 1,
+            "max_gpu_hours_estimate": 1,
+            "allow_submit": False,
+        },
+        "tasks": {"dev": ["SciFact"], "final": list(FINAL_TASKS)},
+        "defaults": {
+            "config": "configs/smoke.yaml",
+            "output_base": "outputs/goal/runs",
+            "eval_output_base": "outputs/goal/eval",
+        },
+        "experiments": [base_experiment],
+    }
+    standalone = validate_manifest_dict(copy.deepcopy(base_manifest))
+    assert standalone["valid"], standalone
+    assert standalone["candidate_tracks"][0]["candidate_track"] == "standalone_main"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        loop_ckpt = _fake_checkpoint(tmpdir, "loop")
+        standard_ckpt = _fake_checkpoint(tmpdir, "standard")
+        fusion_manifest = copy.deepcopy(base_manifest)
+        fusion_exp = fusion_manifest["experiments"][0]
+        fusion_exp["run_id"] = "fusion_candidate"
+        fusion_exp["eval_only"] = True
+        fusion_exp["claim_track"] = "standalone_main"
+        fusion_exp["mechanism"] = "standard+loop weighted concat"
+        fusion_exp["eval"] = {
+            "checkpoint_dir": loop_ckpt,
+            "task_names": list(FINAL_TASKS),
+            "eval_all_loops": False,
+            "loop_idx": 3,
+            "candidate_loop_indices": [3],
+            "fusion_standard_checkpoint_dir": standard_ckpt,
+            "fusion_alpha": 0.2,
+            "fusion_scope": "query_only",
+        }
+        fusion_invalid = validate_manifest_dict(fusion_manifest)
+        assert not fusion_invalid["valid"], fusion_invalid
+        assert any("cannot be standalone_main" in error for error in fusion_invalid["errors"])
+
+        fusion_manifest["experiments"][0].pop("claim_track")
+        fusion_diagnostic = validate_manifest_dict(fusion_manifest)
+        assert fusion_diagnostic["valid"], fusion_diagnostic
+        assert fusion_diagnostic["candidate_tracks"][0]["candidate_track"] == "fusion_diagnostic"
+
+        dev_manifest = copy.deepcopy(fusion_manifest)
+        dev_manifest["batch_id"] = "validator_selftest_dev"
+        dev_manifest["purpose"] = "dev"
+        dev_manifest["budget"]["max_concurrent_gpu_jobs"] = 1
+        dev_manifest["experiments"][0]["eval"]["task_names"] = ["SciFact", "NFCorpus"]
+        dev_manifest["experiments"][0]["eval"]["candidate_loop_indices"] = [3]
+        dev_result = validate_manifest_dict(dev_manifest)
+        assert dev_result["valid"], dev_result
+        assert dev_result["candidate_tracks"][0]["candidate_track"] == "fusion_diagnostic"
+    print("goal_validate_manifest self-test passed")
 
 
 def main() -> None:
     args = parse_args()
+    if args.self_test:
+        self_test()
+        return
+    if not args.manifest:
+        raise SystemExit("manifest is required unless --self-test is used")
     result = validate_manifest(Path(args.manifest))
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))

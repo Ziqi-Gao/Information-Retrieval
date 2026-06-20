@@ -14,7 +14,9 @@ This file is for future Codex sessions working in this repository. Read it befor
 ## Protocol Metric
 
 - Primary metric: `ndcg_at_10`.
-- Default win margin: `0.001`.
+- Weak diagnostic margin: `0.001`.
+- Standalone research-grade threshold: every final-task delta must be at least `+0.002`, macro mean delta must be at least `+0.005`, and no task may regress.
+- Publishable score-candidate threshold: every final-task delta must be at least `+0.002`, macro mean delta must be at least `+0.008`, and the result must be marked as score-only unless bootstrap/significance evidence is available.
 - Final tasks, in protocol order:
   - `SciFact`
   - `NFCorpus`
@@ -23,7 +25,13 @@ This file is for future Codex sessions working in this repository. Read it befor
   - `ArguAna`
   - `Touche2020`
   - `TRECCOVID`
-- A candidate wins only if every final task has `candidate_ndcg_at_10 >= frozen_standard_ndcg_at_10 + margin`.
+- Candidate claims are split into tracks:
+  - `standalone_main`: candidate pipeline scoring only, no standard+candidate ensemble or frozen-standard score/embedding in candidate scoring.
+  - `fusion_diagnostic`: any candidate using `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, standard+loop weighted concatenation, standard embeddings/scores, or an explicit ensemble with the frozen standard model.
+  - `diagnostic`: exploratory or non-final analyses.
+- `fusion_diagnostic` candidates may be evaluated and reported, but they must never trigger main goal success.
+- Main goal success requires `candidate_track == standalone_main`, `purpose: final`, exact coverage of all seven final tasks, no missing/failed/timed-out/duplicate/NaN results, every final-task delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression.
+- `+0.001` on every final task is only `minimal_positive_signal`; it must not be called goal achieved.
 - Missing, failed, timed-out, NaN, duplicate, or partial-task results are failures.
 - Dev subsets are allowed for iteration, but final claims require full final-task coverage against the frozen baseline.
 
@@ -105,6 +113,8 @@ For preparation-only tasks, stop before real large-scale `SUBMIT_BATCH`.
 - `failed_train`, `failed_eval`, `missing_result`, `invalid_metric`, `partial_tasks`, and `timeout` are failures.
 - Do not interpret missing rows as zero or as ties.
 - Do not modify `src/eval_mteb.py` metric extraction to make results look better.
+- Do not label fusion or frozen-standard ensemble candidates as `standalone_main`; even if their deltas pass numerically, label them only as diagnostic/fusion results.
+- Do not call `minimal_positive_signal` or legacy `pass_all_tasks` main goal success.
 - Do not select the best loop per final task after seeing final-task results unless the manifest explicitly marks the batch as exploratory and excludes it from final claims.
 - Loop-depth candidates should be compared as pre-defined candidate IDs, not per-task cherry-picks.
 

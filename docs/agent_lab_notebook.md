@@ -281,3 +281,12 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - eval `4958436`: `PENDING`
   - postprocess `4958437`: `PENDING` with dependency
 - No final claim is made. The repair batch must wait for Slurm-native postprocess and then be scored against all seven final tasks.
+
+## 2026-06-20 Acceptance Policy Tightening
+
+- Protocol-only change; no retrieval method, model architecture, loss, evaluation metric semantics, experiment candidate, training, eval, Slurm submission, or GitHub push was performed.
+- Candidate claims are now split into `standalone_main`, `fusion_diagnostic`, and `diagnostic`.
+- Existing weighted standard+loop fusion batches, including `batch_003_final` and `batch_003_final_repair`, remain valid historical diagnostics. They cannot trigger `main_goal_success`; if their numeric deltas pass, they are labeled `fusion_diagnostic_pass`.
+- Main goal success now requires a `standalone_main` final candidate, all seven final tasks valid, every final-task delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression.
+- `+0.001` all-task clearance is retained only as `minimal_positive_signal`; it is not goal achieved.
+- `publishable_score_candidate` requires `standalone_main`, every final-task delta at least `+0.002`, and macro mean delta at least `+0.008`; without query-level significance evidence it remains `score-only, not statistically certified`.
