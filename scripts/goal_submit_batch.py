@@ -15,6 +15,7 @@ from goal_common import (
     now_utc,
     parse_task_list,
     repo_status,
+    strict_bool,
     write_yaml,
 )
 from goal_validate_manifest import validate_manifest
@@ -145,12 +146,21 @@ def bool_text(value: Any) -> str:
     return "true" if bool(value) else "false"
 
 
+def require_bool(value: Any, field_name: str, default: bool = False) -> bool:
+    parsed = strict_bool(value, default=default)
+    if parsed is None:
+        raise SystemExit("{} must be a YAML boolean true/false".format(field_name))
+    return parsed
+
+
 def assert_output_dirs_available(plan_jobs: List[Dict[str, Any]], resume: bool) -> None:
     if resume:
         return
     collisions: List[str] = []
     for job in plan_jobs:
         for key in ["train_output_dir", "eval_output_dir"]:
+            if job.get("eval_only") and key == "train_output_dir":
+                continue
             path = Path(job[key])
             if path.exists() and any(path.iterdir()):
                 collisions.append(str(path))
@@ -176,10 +186,19 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         config = experiment.get("config") or defaults.get("config")
         train_output_dir = run_root / run_id
         eval_output_dir = eval_root / run_id
-        checkpoint_dir = train_output_dir / "final"
         eval_tasks = task_names_for_experiment(manifest, experiment)
         train_settings = experiment.get("train") or {}
         eval_settings = experiment.get("eval") or {}
+        eval_only = require_bool(experiment.get("eval_only"), "experiment {} eval_only".format(run_id), default=False)
+        if any(key in eval_settings for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha"]) and not eval_only:
+            raise SystemExit("Experiment {} uses eval checkpoint/fusion fields and must set eval_only: true".format(run_id))
+        if eval_only:
+            checkpoint_dir_value = eval_settings.get("checkpoint_dir")
+            if not checkpoint_dir_value:
+                raise SystemExit("Experiment {} has eval_only=true but eval.checkpoint_dir is missing".format(run_id))
+            checkpoint_dir = Path(checkpoint_dir_value)
+        else:
+            checkpoint_dir = train_output_dir / "final"
 
         train_exports: Dict[str, Any] = dict(runtime_exports)
         train_exports.update(
@@ -204,25 +223,40 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
                 "VERSION": version,
                 "CHECKPOINT_DIR": str(checkpoint_dir),
                 "OUTPUT_DIR": str(eval_output_dir),
-                "EVAL_ALL_LOOPS": bool_text(eval_settings.get("eval_all_loops", defaults.get("eval_all_loops", False))),
+                "EVAL_ALL_LOOPS": bool_text(
+                    require_bool(
+                        eval_settings.get("eval_all_loops", defaults.get("eval_all_loops", False)),
+                        "experiment {} eval.eval_all_loops".format(run_id),
+                        default=False,
+                    )
+                ),
                 "TASK_NAMES": ";".join(eval_tasks),
             }
         )
 
-        train_command = ["sbatch", "--parsable"] + scheduler_args + ["--export={}".format(format_export(train_exports)), "scripts/slurm_train.sbatch"]
+        train_command = None
+        if not eval_only:
+            train_command = ["sbatch", "--parsable"] + scheduler_args + ["--export={}".format(format_export(train_exports)), "scripts/slurm_train.sbatch"]
         eval_command_base = ["sbatch", "--parsable"] + scheduler_args
+        if eval_settings.get("loop_idx") is not None:
+            eval_exports["LOOP_IDX"] = eval_settings.get("loop_idx")
+        if eval_settings.get("fusion_standard_checkpoint_dir") is not None:
+            eval_exports["FUSION_STANDARD_CHECKPOINT_DIR"] = eval_settings.get("fusion_standard_checkpoint_dir")
+        if eval_settings.get("fusion_alpha") is not None:
+            eval_exports["FUSION_ALPHA"] = eval_settings.get("fusion_alpha")
         jobs.append(
             {
                 "batch_id": batch_id,
                 "run_id": run_id,
                 "purpose": purpose,
+                "eval_only": eval_only,
                 "version": version,
                 "config": config,
                 "tasks": eval_tasks,
                 "train_output_dir": str(train_output_dir),
                 "eval_output_dir": str(eval_output_dir),
                 "checkpoint_dir": str(checkpoint_dir),
-                "train_exports": sorted(train_exports),
+                "train_exports": sorted(train_exports) if not eval_only else [],
                 "eval_exports": sorted(eval_exports),
                 "train_command": train_command,
                 "eval_command_base": eval_command_base,
@@ -256,15 +290,16 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool) -> None:
     }
     open_jobs = []
     for job in plan["jobs"]:
-        open_jobs.append(
-            {
-                "batch_id": plan["batch_id"],
-                "run_id": job["run_id"],
-                "type": "train",
-                "job_id": job.get("train_job_id"),
-                "status": "dry_run" if dry_run else "submitted",
-            }
-        )
+        if not job.get("eval_only"):
+            open_jobs.append(
+                {
+                    "batch_id": plan["batch_id"],
+                    "run_id": job["run_id"],
+                    "type": "train",
+                    "job_id": job.get("train_job_id"),
+                    "status": "dry_run" if dry_run else "submitted",
+                }
+            )
         open_jobs.append(
             {
                 "batch_id": plan["batch_id"],
@@ -298,7 +333,8 @@ def main() -> None:
         raise SystemExit("Manifest validation failed")
     manifest = load_yaml(manifest_path)
     budget = manifest.get("budget") or {}
-    if args.submit and not bool(budget.get("allow_submit", False)):
+    allow_submit = require_bool(budget.get("allow_submit"), "budget.allow_submit", default=False)
+    if args.submit and not allow_submit:
         raise SystemExit("Refusing --submit because budget.allow_submit is false.")
     if args.submit and not validation["baseline_present"] and manifest.get("purpose") != "smoke":
         raise SystemExit("Refusing --submit without a frozen baseline.")
@@ -312,7 +348,9 @@ def main() -> None:
     write_yaml(submitted_manifest, manifest)
 
     for job in plan["jobs"]:
-        train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
+        train_job_id = None
+        if not job.get("eval_only"):
+            train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
         job["train_job_id"] = train_job_id
         dependency_args: List[str] = []
         if train_job_id:
@@ -333,7 +371,8 @@ def main() -> None:
     print("{} batch {} with {} experiment(s).".format(mode, manifest["batch_id"], len(plan["jobs"])))
     print("Plan: {}".format(plan_path))
     for job in plan["jobs"]:
-        print("- {} train_job={} eval_job={}".format(job["run_id"], job["train_job_id"], job["eval_job_id"]))
+        mode = "eval_only" if job.get("eval_only") else "train_eval"
+        print("- {} mode={} train_job={} eval_job={}".format(job["run_id"], mode, job["train_job_id"], job["eval_job_id"]))
 
 
 if __name__ == "__main__":

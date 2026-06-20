@@ -21,3 +21,74 @@ This notebook records factual preparation steps for the autonomous retrieval goa
 - Run `scripts/goal_preflight.py` before any real autonomous batch.
 - Treat missing, failed, duplicate, partial, or NaN results as failures.
 - Keep personal paths, account names, and tokens out of tracked files.
+
+## 2026-06-19 Round 001 Dev Batch Design
+
+- Baseline validated before Round 001:
+  - `outputs/baselines/standard_frozen/results_summary.csv`
+  - `outputs/baselines/standard_frozen/baseline_manifest.json`
+  - `baseline.status = frozen`
+  - primary metric: `ndcg_at_10`
+- Preflight passed on `experiments/batches/batch_template.yaml`.
+- Read-only subagents used:
+  - `repo_auditor`: confirmed current wrapper always used train+eval and identified minimal hooks for `LOOP_IDX`, eval-only, and retrieval-time fusion.
+  - `literature_scout`: recommended standard-preserving evaluation-only fusion before training changes.
+  - `experiment_planner`: recommended a compact dev batch within the 4-job and 24-GPU-hour limits.
+- Parent decision: implement a minimal evaluation-only standard+loop weighted-concat fusion path, not new training, not a new base model, and not final-task validation.
+- Round 001 manifest: `experiments/batches/batch_001_dev.yaml`.
+- Dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, `SCIDOCS`.
+- Pre-registered dev candidates:
+  - `r001_fuse_loop_matryoshka_t2_a10__loop2`
+  - `r001_fuse_loop_matryoshka_t3_a10__loop3`
+  - `r001_fuse_loop_final_t2_a10__loop2`
+- These are exploratory dev candidates only. They cannot support a final claim.
+- Round 001 validation:
+  - `python scripts/goal_validate_manifest.py experiments/batches/batch_001_dev.yaml` passed.
+  - `python scripts/goal_submit_batch.py experiments/batches/batch_001_dev.yaml --dry-run` passed with `mode=eval_only` and no train jobs.
+  - `python scripts/goal_preflight.py --manifest experiments/batches/batch_001_dev.yaml` passed.
+- Code-risk reviewer findings:
+  - Fixed strict YAML boolean handling for submit-related fields.
+  - Fixed eval-only fail-closed validation.
+  - Added checkpoint/tmax validation for eval-only manifests.
+  - Added fusion metadata columns to result summaries and collection.
+  - Fixed `goal_status.py` so eval-only plans do not synthesize train status rows.
+- Round 001 submitted through `scripts/goal_submit_batch.py --submit` only.
+- Slurm job IDs:
+  - `r001_fuse_loop_matryoshka_t2_a10`: eval job `4956041`
+  - `r001_fuse_loop_matryoshka_t3_a10`: eval job `4956042`
+  - `r001_fuse_loop_final_t2_a10`: eval job `4956043`
+- Immediate `scripts/goal_status.py --update-state` showed all three jobs `running`.
+- Current state phase after submission: `SUBMIT_BATCH`.
+- Next action: resume later with `scripts/goal_status.py`, then collect and score only after jobs are terminal.
+
+## 2026-06-20 Watcher Infrastructure
+
+- Added `scripts/goal_watch_batch.py` to poll submitted goal batches through `scripts/goal_status.py`.
+- Added docs in `docs/goal_watch_batch.md` and updated `docs/goal_protocol.md`.
+- Watcher modes:
+  - `notify`: print next status, collect, and scoreboard commands after all jobs are terminal.
+  - `codex`: after terminal state only, launch `codex exec --sandbox workspace-write` with a resume prompt.
+- Watcher safety:
+  - refuses to run inside Slurm unless explicitly allowed
+  - requires frozen baseline, state file, submitted job IDs, and submission plan
+  - writes `watcher.log` and `watcher_status.json`
+  - uses `.codex_resume_launched` to avoid repeated Codex resumes
+  - does not submit jobs, train, evaluate, collect, score, or change metrics by itself
+- Watcher notify test:
+  - normal sandbox polling timed out because Slurm status access was restricted
+  - elevated local polling succeeded and found all three `batch_001_dev` eval jobs terminal with `completed` status
+  - no collect or scoreboard command was run by the watcher test
+
+## 2026-06-20 Round 001 Dev Results
+
+- Status refresh through `scripts/goal_status.py --update-state` found all three `batch_001_dev` eval jobs completed.
+- Collection through `scripts/goal_collect.py` wrote 12 valid rows to `outputs/goal/runs/batch_001_dev/collected_results.csv`.
+- Scoreboard through `scripts/goal_scoreboard.py` wrote `outputs/goal/runs/batch_001_dev/scoreboard.csv` and `.json`.
+- No invalid dev-task rows were found; all three candidates covered `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`.
+- Scoreboard correctly marks all candidates `pass_all_tasks = false` because this was a 4-task dev batch and does not cover `ArguAna`, `Touche2020`, or `TRECCOVID`.
+- Dev-only deltas against frozen standard:
+  - `r001_fuse_loop_matryoshka_t3_a10__loop3`: wins 3/4 dev tasks, min delta `+0.00070`, mean delta `+0.00165`; misses the margin on `SCIDOCS`.
+  - `r001_fuse_loop_matryoshka_t2_a10__loop2`: wins 2/4 dev tasks, min delta `+0.00017`, mean delta `+0.00129`; misses the margin on `NFCorpus` and `SCIDOCS`.
+  - `r001_fuse_loop_final_t2_a10__loop2`: wins 1/4 dev tasks, min delta `-0.00023`, mean delta `+0.00067`; only `SCIDOCS` clears the margin.
+- Read-only result analyst agreed that `loop_matryoshka_t3_a10` is the best dev signal but not sufficient for final validation.
+- Parent decision: do not promote Round 001 to final validation. Design another dev batch that preserves the matryoshka loop-3 gains while addressing the `SCIDOCS` margin gap without per-task cherry-picking.

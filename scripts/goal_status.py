@@ -116,6 +116,8 @@ def main() -> None:
     rows: List[Dict[str, Any]] = []
     for job in plan.get("jobs", []):
         for job_type, key in [("train", "train_job_id"), ("eval", "eval_job_id")]:
+            if job.get("eval_only") and job_type == "train":
+                continue
             status = job_status(job.get(key))
             row = {
                 "batch_id": batch_id,

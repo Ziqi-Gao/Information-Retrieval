@@ -29,6 +29,9 @@ VERSION=${VERSION:-standard}
 CHECKPOINT_DIR=${CHECKPOINT_DIR:-outputs/preexp/standard/final}
 OUTPUT_DIR=${OUTPUT_DIR:-outputs/preexp_eval}
 EVAL_ALL_LOOPS=${EVAL_ALL_LOOPS:-true}
+LOOP_IDX=${LOOP_IDX:-}
+FUSION_STANDARD_CHECKPOINT_DIR=${FUSION_STANDARD_CHECKPOINT_DIR:-}
+FUSION_ALPHA=${FUSION_ALPHA:-}
 DEFAULT_EVAL_TASKS=${DEFAULT_EVAL_TASKS:-SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID}
 if [ -n "${TASK_NAMES:-}" ]; then
   TASK_NAMES="${TASK_NAMES}"
@@ -42,12 +45,24 @@ mkdir -p "${OUTPUT_DIR}" slurm_logs
 
 echo "Evaluation tasks: ${TASK_NAMES}"
 
+EVAL_EXTRA_ARGS=()
+if [ -n "${LOOP_IDX}" ]; then
+  EVAL_EXTRA_ARGS+=(--loop_idx "${LOOP_IDX}")
+fi
+if [ -n "${FUSION_STANDARD_CHECKPOINT_DIR}" ]; then
+  EVAL_EXTRA_ARGS+=(--fusion_standard_checkpoint_dir "${FUSION_STANDARD_CHECKPOINT_DIR}")
+fi
+if [ -n "${FUSION_ALPHA}" ]; then
+  EVAL_EXTRA_ARGS+=(--fusion_alpha "${FUSION_ALPHA}")
+fi
+
 "${PYTHON_BIN}" -m src.eval_mteb \
   --checkpoint_dir "${CHECKPOINT_DIR}" \
   --version "${VERSION}" \
   --task_names "${TASK_NAMES}" \
   --eval_all_loops "${EVAL_ALL_LOOPS}" \
   --batch_size 32 \
-  --output_dir "${OUTPUT_DIR}"
+  --output_dir "${OUTPUT_DIR}" \
+  "${EVAL_EXTRA_ARGS[@]}"
 
 echo "End time: $(date)"

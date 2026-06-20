@@ -139,6 +139,40 @@ After a pause or queue delay:
 
 Do not infer completion from elapsed wall time alone.
 
+## Batch Watcher
+
+For long queue delays, a lightweight local watcher may poll the current batch without invoking an LLM while jobs are still pending or running:
+
+```bash
+python scripts/goal_watch_batch.py \
+  --state outputs/goal/state.json \
+  --batch-id batch_001_dev \
+  --interval-seconds 600 \
+  --max-hours 12 \
+  --mode notify
+```
+
+The watcher:
+
+- refuses to run inside Slurm unless `--allow-inside-slurm` is explicit
+- refuses to run without a frozen baseline, state file, submission plan, and submitted job IDs
+- polls only through `scripts/goal_status.py --update-state --json`
+- treats `completed`, `failed`, `cancelled`, `timeout`, `missing_result`, `invalid_metric`, `partial_tasks`, `failed_train`, and `failed_eval` as terminal
+- treats `pending`, `running`, `unknown`, and `dry_run` as non-terminal
+- writes `outputs/goal/runs/<batch_id>/watcher.log`
+- writes `outputs/goal/runs/<batch_id>/watcher_status.json`
+- never submits jobs, trains models, evaluates MTEB, collects results, scores results, or changes metric semantics by itself
+
+In `--mode notify`, the watcher prints the exact next status, collect, and scoreboard commands once all jobs are terminal.
+
+In `--mode codex`, the watcher may invoke:
+
+```bash
+codex exec --sandbox workspace-write
+```
+
+only after all jobs are terminal. It uses a sentinel file, `outputs/goal/runs/<batch_id>/.codex_resume_launched`, so Codex is not launched repeatedly unless `--force-codex` is explicitly passed. The resumed Codex session must collect and score through the goal scripts and must not submit new jobs before summarizing the completed batch and preparing a new dry-run plan.
+
 ## Failure Classes
 
 Use these classifications:
