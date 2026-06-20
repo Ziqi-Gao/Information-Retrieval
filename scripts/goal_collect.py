@@ -32,6 +32,7 @@ COLLECT_COLUMNS = [
     "raw_result_path",
     "fusion_standard_checkpoint_dir",
     "fusion_alpha",
+    "fusion_scope",
     "source_summary",
 ]
 
@@ -159,6 +160,7 @@ def collect_experiment(batch_id: str, eval_root: Path, manifest: Dict[str, Any],
                 "raw_result_path": raw.get("raw_result_path", ""),
                 "fusion_standard_checkpoint_dir": raw.get("fusion_standard_checkpoint_dir", ""),
                 "fusion_alpha": raw.get("fusion_alpha", ""),
+                "fusion_scope": raw.get("fusion_scope", ""),
                 "source_summary": str(summary_path),
             }
         )

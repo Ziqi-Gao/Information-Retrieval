@@ -239,7 +239,7 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         if "eval_all_loops" in eval_config:
             _validate_bool_field(errors, eval_config.get("eval_all_loops"), "experiment {} eval.eval_all_loops".format(run_id or idx), default=False)
         has_external_eval_checkpoint = any(
-            key in eval_config for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha"]
+            key in eval_config for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha", "fusion_scope"]
         )
         if has_external_eval_checkpoint and not eval_only:
             _add(errors, "experiment {} uses eval checkpoint/fusion fields and must set eval_only: true".format(run_id or idx))
@@ -259,6 +259,11 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         fusion_alpha_value = eval_config.get("fusion_alpha")
         if bool(fusion_checkpoint) != (fusion_alpha_value is not None):
             _add(errors, "experiment {} fusion_standard_checkpoint_dir and fusion_alpha must be provided together".format(run_id or idx))
+        fusion_scope = eval_config.get("fusion_scope", "both")
+        if fusion_scope not in {"both", "query_only", "doc_only"}:
+            _add(errors, "experiment {} eval.fusion_scope must be one of both, query_only, doc_only".format(run_id or idx))
+        if "fusion_scope" in eval_config and not fusion_checkpoint:
+            _add(errors, "experiment {} eval.fusion_scope requires fusion_standard_checkpoint_dir and fusion_alpha".format(run_id or idx))
         fusion_config: Optional[Dict[str, Any]] = None
         if fusion_checkpoint:
             fusion_config = _validate_checkpoint_dir(

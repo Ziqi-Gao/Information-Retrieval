@@ -13,6 +13,11 @@
 
 set -euo pipefail
 
+if [ "${GOAL_SUBMIT_BATCH:-}" != "1" ] && [ "${ALLOW_LEGACY_DIRECT_SBATCH:-}" != "1" ]; then
+  echo "Refusing direct sbatch. Use scripts/goal_submit_batch.py, or set ALLOW_LEGACY_DIRECT_SBATCH=1 for an explicit manual override." >&2
+  exit 2
+fi
+
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: ${SLURMD_NODENAME}"
 echo "Start time: $(date)"
@@ -32,6 +37,7 @@ EVAL_ALL_LOOPS=${EVAL_ALL_LOOPS:-true}
 LOOP_IDX=${LOOP_IDX:-}
 FUSION_STANDARD_CHECKPOINT_DIR=${FUSION_STANDARD_CHECKPOINT_DIR:-}
 FUSION_ALPHA=${FUSION_ALPHA:-}
+FUSION_SCOPE=${FUSION_SCOPE:-}
 DEFAULT_EVAL_TASKS=${DEFAULT_EVAL_TASKS:-SciFact,NFCorpus,SCIDOCS,FiQA2018,ArguAna,Touche2020,TRECCOVID}
 if [ -n "${TASK_NAMES:-}" ]; then
   TASK_NAMES="${TASK_NAMES}"
@@ -54,6 +60,9 @@ if [ -n "${FUSION_STANDARD_CHECKPOINT_DIR}" ]; then
 fi
 if [ -n "${FUSION_ALPHA}" ]; then
   EVAL_EXTRA_ARGS+=(--fusion_alpha "${FUSION_ALPHA}")
+fi
+if [ -n "${FUSION_SCOPE}" ]; then
+  EVAL_EXTRA_ARGS+=(--fusion_scope "${FUSION_SCOPE}")
 fi
 
 "${PYTHON_BIN}" -m src.eval_mteb \

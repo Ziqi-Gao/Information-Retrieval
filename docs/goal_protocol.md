@@ -114,16 +114,17 @@ The wrapper:
 
 - runs manifest validation first
 - defaults to dry-run
+- writes dry-run plans to `outputs/goal/runs/<batch_id>/dry_run_plan.json`
 - refuses submit when `budget.allow_submit: false`
 - refuses submit without a frozen baseline unless `purpose: smoke`
 - refuses non-empty duplicate output directories unless `--resume` is passed
-- writes `outputs/goal/runs/<batch_id>/batch_manifest.submitted.yaml`
-- writes `outputs/goal/runs/<batch_id>/submission_plan.json`
+- writes submitted manifests to `outputs/goal/runs/<batch_id>/batch_manifest.submitted.yaml`
+- writes submitted plans to `outputs/goal/runs/<batch_id>/submission_plan.json`
 - calls existing `scripts/slurm_train.sbatch`
 - calls existing `scripts/slurm_eval.sbatch` with `afterok` dependency
 - exports only safe runtime and experiment variables
 
-Legacy Slurm launchers are guarded and refuse direct submission by default. They are not part of the autonomous goal workflow.
+Base train/eval sbatch scripts and legacy Slurm launchers are guarded and refuse direct submission by default. They are not part of the autonomous goal workflow. Manual override requires an explicit `ALLOW_LEGACY_DIRECT_SBATCH=1` environment variable and must not be used for autonomous goal batches.
 
 GPU budget controls are manifest-level guardrails. They are not a scheduler guarantee. The future agent must still review queue state and actual job outcomes.
 

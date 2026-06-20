@@ -92,3 +92,28 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `r001_fuse_loop_final_t2_a10__loop2`: wins 1/4 dev tasks, min delta `-0.00023`, mean delta `+0.00067`; only `SCIDOCS` clears the margin.
 - Read-only result analyst agreed that `loop_matryoshka_t3_a10` is the best dev signal but not sufficient for final validation.
 - Parent decision: do not promote Round 001 to final validation. Design another dev batch that preserves the matryoshka loop-3 gains while addressing the `SCIDOCS` margin gap without per-task cherry-picking.
+
+## 2026-06-20 Round 002 Dev Batch Design
+
+- Round 002 manifest: `experiments/batches/batch_002_dev.yaml`.
+- Dev tasks remain `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`.
+- Parent decision: keep the method standard-preserving and evaluation-only. Do not train, change the base model, or make a final claim.
+- Batch goal: test whether the Round 001 matryoshka loop-3 signal can clear the `SCIDOCS` dev margin without losing the other three dev tasks.
+- Pre-registered dev candidates:
+  - `r002_both_loop_matryoshka_t3_a15__loop3`: both-side fusion, alpha `0.15`.
+  - `r002_both_loop_matryoshka_t3_a20__loop3`: both-side fusion, alpha `0.20`.
+  - `r002_query_loop_matryoshka_t3_a10__loop3`: query-only fusion, alpha `0.10`.
+  - `r002_query_loop_matryoshka_t3_a20__loop3`: query-only fusion, alpha `0.20`.
+- Candidate rule is global for each run: same loop index, fusion scope, and alpha for every task. No per-task loop, alpha, or scope selection is allowed.
+- Added `fusion_scope` with default `both`; `query_only` uses standard document embeddings on both concatenated document sides and loop-enhanced embeddings only on the query side.
+- Code-risk reviewer was used before submission. Blocker/high fixes applied:
+  - `scripts/slurm_train.sbatch` and `scripts/slurm_eval.sbatch` now refuse direct `sbatch` unless launched by `scripts/goal_submit_batch.py` or explicitly overridden with `ALLOW_LEGACY_DIRECT_SBATCH=1`.
+  - `scripts/goal_submit_batch.py` now writes dry-run artifacts to `dry_run_plan.json` and `batch_manifest.dry_run.yaml` instead of overwriting submitted plans.
+  - `scripts/goal_preflight.py` uses a temporary state file for dry-run checks.
+  - Fusion raw artifact directories now include fusion scope and alpha to reduce accidental raw JSON overwrites.
+- Validation before planned submission:
+  - `python -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `python scripts/goal_validate_manifest.py experiments/batches/batch_002_dev.yaml` passed.
+  - `python scripts/goal_submit_batch.py experiments/batches/batch_002_dev.yaml --dry-run --resume` passed and wrote `outputs/goal/runs/batch_002_dev/dry_run_plan.json`.
+  - `python scripts/goal_preflight.py --manifest experiments/batches/batch_002_dev.yaml` passed.

@@ -190,7 +190,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         train_settings = experiment.get("train") or {}
         eval_settings = experiment.get("eval") or {}
         eval_only = require_bool(experiment.get("eval_only"), "experiment {} eval_only".format(run_id), default=False)
-        if any(key in eval_settings for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha"]) and not eval_only:
+        if any(key in eval_settings for key in ["checkpoint_dir", "fusion_standard_checkpoint_dir", "fusion_alpha", "fusion_scope"]) and not eval_only:
             raise SystemExit("Experiment {} uses eval checkpoint/fusion fields and must set eval_only: true".format(run_id))
         if eval_only:
             checkpoint_dir_value = eval_settings.get("checkpoint_dir")
@@ -203,6 +203,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         train_exports: Dict[str, Any] = dict(runtime_exports)
         train_exports.update(
             {
+                "GOAL_SUBMIT_BATCH": "1",
                 "VERSION": version,
                 "CONFIG": config,
                 "OUTPUT_BASE": str(run_root),
@@ -220,6 +221,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         eval_exports: Dict[str, Any] = dict(runtime_exports)
         eval_exports.update(
             {
+                "GOAL_SUBMIT_BATCH": "1",
                 "VERSION": version,
                 "CHECKPOINT_DIR": str(checkpoint_dir),
                 "OUTPUT_DIR": str(eval_output_dir),
@@ -244,6 +246,8 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             eval_exports["FUSION_STANDARD_CHECKPOINT_DIR"] = eval_settings.get("fusion_standard_checkpoint_dir")
         if eval_settings.get("fusion_alpha") is not None:
             eval_exports["FUSION_ALPHA"] = eval_settings.get("fusion_alpha")
+        if eval_settings.get("fusion_scope") is not None:
+            eval_exports["FUSION_SCOPE"] = eval_settings.get("fusion_scope")
         jobs.append(
             {
                 "batch_id": batch_id,
@@ -276,7 +280,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool) -> None:
+def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool, plan_path: Path) -> None:
     state: Dict[str, Any] = {}
     if state_path.exists():
         state = load_json(state_path)
@@ -285,7 +289,7 @@ def update_state(state_path: Path, plan: Dict[str, Any], dry_run: bool) -> None:
     state["current_batch"] = {
         "batch_id": plan["batch_id"],
         "manifest": plan["manifest"],
-        "plan": "outputs/goal/runs/{}/submission_plan.json".format(plan["batch_id"]),
+        "plan": str(plan_path),
         "dry_run": dry_run,
     }
     open_jobs = []
@@ -343,9 +347,9 @@ def main() -> None:
     assert_output_dirs_available(plan["jobs"], args.resume)
 
     batch_dir = ensure_dir(Path("outputs/goal/runs") / manifest["batch_id"])
-    submitted_manifest = batch_dir / "batch_manifest.submitted.yaml"
-    plan_path = batch_dir / "submission_plan.json"
-    write_yaml(submitted_manifest, manifest)
+    manifest_copy = batch_dir / ("batch_manifest.dry_run.yaml" if dry_run else "batch_manifest.submitted.yaml")
+    plan_path = batch_dir / ("dry_run_plan.json" if dry_run else "submission_plan.json")
+    write_yaml(manifest_copy, manifest)
 
     for job in plan["jobs"]:
         train_job_id = None
@@ -365,7 +369,7 @@ def main() -> None:
 
     plan["dry_run"] = dry_run
     atomic_write_json(plan_path, plan)
-    update_state(Path(args.state), plan, dry_run=dry_run)
+    update_state(Path(args.state), plan, dry_run=dry_run, plan_path=plan_path)
 
     mode = "DRY RUN" if dry_run else "SUBMITTED"
     print("{} batch {} with {} experiment(s).".format(mode, manifest["batch_id"], len(plan["jobs"])))

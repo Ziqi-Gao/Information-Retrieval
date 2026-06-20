@@ -11,10 +11,10 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_001_dev",
-    "dry_run": false,
-    "manifest": "experiments/batches/batch_001_dev.yaml",
-    "plan": "outputs/goal/runs/batch_001_dev/submission_plan.json"
+    "batch_id": "batch_002_dev",
+    "dry_run": true,
+    "manifest": "experiments/batches/batch_002_dev.yaml",
+    "plan": "outputs/goal/runs/batch_002_dev/dry_run_plan.json"
   },
   "final_tasks": [
     "SciFact",
@@ -31,41 +31,46 @@
     "path": "outputs/goal/runs/batch_001_dev/watcher_status.json",
     "updated_at": "2026-06-20T02:06:32Z"
   },
-  "next_required_action": "Design batch_002_dev to preserve matryoshka loop-3 gains while addressing the SCIDOCS dev margin gap; do not make a final claim from batch_001_dev.",
+  "next_required_action": "Review dry-run plan, then submit only if the manifest allows it.",
   "open_jobs": [
     {
-      "batch_id": "batch_001_dev",
-      "job_id": "4956041",
-      "raw_state": "COMPLETED",
-      "run_id": "r001_fuse_loop_matryoshka_t2_a10",
-      "source": "sacct",
-      "status": "completed",
+      "batch_id": "batch_002_dev",
+      "depends_on": null,
+      "job_id": null,
+      "run_id": "r002_both_loop_matryoshka_t3_a15",
+      "status": "dry_run",
       "type": "eval"
     },
     {
-      "batch_id": "batch_001_dev",
-      "job_id": "4956042",
-      "raw_state": "COMPLETED",
-      "run_id": "r001_fuse_loop_matryoshka_t3_a10",
-      "source": "sacct",
-      "status": "completed",
+      "batch_id": "batch_002_dev",
+      "depends_on": null,
+      "job_id": null,
+      "run_id": "r002_both_loop_matryoshka_t3_a20",
+      "status": "dry_run",
       "type": "eval"
     },
     {
-      "batch_id": "batch_001_dev",
-      "job_id": "4956043",
-      "raw_state": "COMPLETED",
-      "run_id": "r001_fuse_loop_final_t2_a10",
-      "source": "sacct",
-      "status": "completed",
+      "batch_id": "batch_002_dev",
+      "depends_on": null,
+      "job_id": null,
+      "run_id": "r002_query_loop_matryoshka_t3_a10",
+      "status": "dry_run",
+      "type": "eval"
+    },
+    {
+      "batch_id": "batch_002_dev",
+      "depends_on": null,
+      "job_id": null,
+      "run_id": "r002_query_loop_matryoshka_t3_a20",
+      "status": "dry_run",
       "type": "eval"
     }
   ],
-  "phase": "DECIDE_NEXT",
+  "phase": "DRY_RUN_SUBMIT",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "fb72cd3e15ee98a4e7d8d5af34936e087a712212",
+    "commit": "b088abd3a5466810b542df49b2b72542018e707d",
     "dirty": true
   },
   "win_margin": 0.001
