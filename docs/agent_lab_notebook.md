@@ -687,3 +687,47 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5040679`
   - Postprocess dependency: `afterany:5040674:5040676:5040678`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_009_dev/scoreboard.json`.
+
+## 2026-06-21 Batch 009 Dev Standalone Result And Repair
+
+- `batch_009_dev` completed Slurm-native postprocess:
+  - eval/train jobs:
+    - `r009_docloop_first_token_t7`: eval `5040674`
+    - `r009_detached_first_token_full_t10`: train `5040675`, eval `5040676`
+    - `r009_first_token_neg3_t10`: train `5040677`, eval `5040678`
+  - postprocess job: `5040679`
+  - marker: `outputs/goal/runs/batch_009_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_009_dev/scoreboard.json`
+- There is no `postprocess_failed.json`. A local `goal_status.py --batch-id batch_009_dev --update-state` refresh hung while querying `squeue` for old eval job `5040674` and was terminated; the postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; all candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r009_detached_first_token_full_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.01024`, dev mean delta `-0.00458`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.01024`, `NFCorpus -0.00269`, `FiQA2018 -0.00570`, `SCIDOCS +0.00030`.
+  - `r009_first_token_neg3_t10__loop10`: track `standalone_main`, all success flags false, dev min delta `-0.02528`, dev mean delta `-0.01549`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.01282`, `NFCorpus -0.01521`, `FiQA2018 -0.02528`, `SCIDOCS -0.00866`.
+  - `r009_docloop_first_token_t7__loop7`: track `standalone_main`, all success flags false, no valid dev rows, and all four dev tasks are `missing_result`.
+    - Eval job `5040674` failed at `NFCorpus` with a Hugging Face datasets cache loader error: multiple cached `mteb/nfcorpus` configurations were present and the loader asked for an explicit configuration.
+- Decision: `main_goal_success=false`. The two completed full-budget standalone candidates did not produce a viable global dev signal. The document-loop candidate is not interpretable as a mechanism result because its eval failed before writing `results_summary.csv`.
+- Local search remains exhausted. Batch 004 through batch 009 have not produced a standalone global dev signal, and another local loop-depth or memory-mode sweep would be low-value.
+- Repair action:
+  - Created `experiments/batches/batch_009_dev_repair.yaml`.
+  - Purpose: `dev`.
+  - Candidate track: `standalone_main`.
+  - Candidate: `r009_docloop_first_token_t7_repair`, preserving the original `batch_009_dev` document-loop rule: query loop index `7`, document loop index `7`, same batch_006 first-token checkpoint, same four dev tasks, no frozen-standard scoring input or interpolation.
+  - This is a pure eval-only infrastructure repair for a missing result, not a new research batch and not a local-neighborhood sweep.
+- Repair budget: estimated 4 GPU hours against the configured 24 GPU-hour batch budget, with one concurrent GPU job.
+- Checks before repair submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_009_dev_repair.yaml` passed with the expected dev-only standalone warning.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_009_dev_repair.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_009_dev_repair.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first submit attempt without site scheduler args failed before job creation because the cluster required `--partition`.
+  - A sandboxed retry with scheduler args failed before job creation because Slurm controller socket access is blocked inside the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded.
+  - Eval job ID: `5043318`
+  - Postprocess job ID: `5043319`
+  - Postprocess dependency: `afterany:5043318`
+- Next action: wait for the repair postprocess, then inspect `outputs/goal/runs/batch_009_dev_repair/scoreboard.json`.
