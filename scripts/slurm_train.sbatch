@@ -54,6 +54,12 @@ fi
 if [ -n "${SAVE_STEPS:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--save_steps "${SAVE_STEPS}")
 fi
+if [ -n "${INBATCH_WEIGHT:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--inbatch_weight "${INBATCH_WEIGHT}")
+fi
+if [ -n "${PAIRWISE_MARGIN:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--pairwise_margin "${PAIRWISE_MARGIN}")
+fi
 if [ -n "${LOOP_LOSS_GAMMA:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--loop_loss_gamma "${LOOP_LOSS_GAMMA}")
 fi

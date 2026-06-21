@@ -671,41 +671,85 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - keeps one global candidate rule per run across all dev tasks;
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
-- Checks before submission:
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall -q src scripts` passed.
-  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
-  - `git diff --check` passed.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_010_dev.yaml` passed with expected dev-only standalone warnings for the two `standalone_main` candidates.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_scoreboard.py --self-test` passed.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_010_dev.yaml` passed.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_010_dev.yaml --dry-run --submit-postprocess` passed and rewrote `outputs/goal/runs/batch_010_dev/dry_run_plan.json` with postprocess enabled.
-- Submission:
-  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
-  - The first sandboxed submit attempt failed before job creation because Slurm controller socket access is blocked in the sandbox.
-  - The approved external retry through the same `goal_submit_batch.py` command succeeded.
-  - Train/eval job IDs:
+
+## 2026-06-21 Batch 010 Dev Mixed Portfolio Result
+
+- `batch_010_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
     - `r010_tail_weighted_first_token_t10`: train `5076613`, eval `5076614`
     - `r010_consistency_first_token_t10`: train `5076615`, eval `5076616`
     - `r010_self_residual_first_token_t7_a50`: eval `5076617`
-  - Postprocess job ID: `5076618`
-  - Postprocess dependency: `afterany:5076614:5076616:5076617`
-- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_010_dev/scoreboard.json`.
+  - postprocess job: `5076618`
+  - marker: `outputs/goal/runs/batch_010_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_010_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local `goal_status.py --batch-id batch_010_dev --update-state` refresh attempt hung without output in Slurm status querying. The postprocess marker, scoreboard, and subagent workflow audit were used as terminal evidence.
+- Batch purpose: `dev`; these results cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r010_tail_weighted_first_token_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.01743`, dev mean delta `-0.01095`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.01743`, `NFCorpus -0.00848`, `FiQA2018 -0.01491`, `SCIDOCS -0.00298`.
+  - `r010_consistency_first_token_t10__loop10`: track `standalone_main`, all success flags false, dev min delta `-0.03741`, dev mean delta `-0.0209075`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.03741`, `NFCorpus -0.01396`, `FiQA2018 -0.02648`, `SCIDOCS -0.00578`.
+  - `r010_self_residual_first_token_t7_a50__loop7`: track `diagnostic`, all success flags false, dev min delta `-0.01115`, dev mean delta `-0.001125`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00396`, `NFCorpus +0.00371`, `FiQA2018 -0.01115`, `SCIDOCS -0.00102`.
+- Decision: `main_goal_success=false`. The two `standalone_main` candidates did not produce a viable global dev signal; the diagnostic self-residual probe remains non-main and non-global.
+- Local search remains exhausted. Recent evidence has now falsified local loop-depth tuning, memory-mode variants, detached-memory training, lower negative count, document-loop symmetry, loop-loss tail weighting, adjacent-loop consistency, and candidate-internal self-residual stabilization.
+
+## 2026-06-21 Research Design Round 004 And Batch 011 Portfolio
+
+- Entered `RESEARCH_DESIGN_MODE` again before validating, dry-running, preflighting, or submitting any new batch.
+- Real subagents were used for parallel read-only gates:
+  - one analyzed `batch_010_dev` under claim-track policy;
+  - one audited workflow state, postprocess completion, and next batch id;
+  - one assessed local-search exhaustion and proposed broader standalone directions.
+- Wrote the research plan at `docs/research_design_round_004.md`.
+- Broad standalone directions considered:
+  - true in-batch hybrid contrastive loss;
+  - pairwise/listwise ranking loss;
+  - seeded random positive/negative sampling;
+  - query/document loop co-training;
+  - loop-depth dropout or sparse loop supervision;
+  - hardness curriculum;
+  - parameter-free pooling alternative.
+- Code/config updates prepared before validation:
+  - Added registered versions `loop_inbatch_hybrid_first_token` and `loop_pairwise_first_token`.
+  - Added candidate-only in-batch hybrid loss support and loopwise pairwise ranking loss support.
+  - Added Slurm manifest/export support for `inbatch_weight` and `pairwise_margin`.
+  - Added `configs/goal_batch_011_inbatch_hybrid_first_token.yaml`.
+  - Added `configs/goal_batch_011_pairwise_first_token.yaml`.
+  - Created `experiments/batches/batch_011_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r011_inbatch_hybrid_first_token_t10`: first-token loopwise training with hard negatives plus candidate-only in-batch contrastive loss, `inbatch_weight=0.25`, fixed `loop_idx=10`.
+  - `r011_pairwise_rank_first_token_t10`: first-token loopwise training with pairwise softplus ranking loss, `pairwise_margin=0.0`, fixed `loop_idx=10`.
+- Portfolio rationale:
+  - tests two broader retrieval training objectives after loop-local search failure;
+  - does not retest neighboring loop depths, memory modes, or the same failed checkpoint;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
+- Estimated GPU budget: 20 GPU hours against the configured 24 GPU-hour limit, with at most 2 concurrent GPU jobs.
 - Checks before submission:
+  - Code-risk subagent gate completed; it found one misplaced notebook block, which was corrected before validation.
   - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
   - `bash -n scripts/*.sh scripts/*.sbatch` passed.
   - `git diff --check` passed.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_009_dev.yaml` passed with expected dev-only standalone warnings.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_009_dev.yaml --dry-run --submit-postprocess` passed.
-  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_009_dev.yaml` passed.
+  - Initial manifest validation failed only because a negative prose phrase contained a forbidden standalone audit token; the manifest wording was corrected without changing candidate rules.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_011_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_011_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_011_dev.yaml` passed.
 - Submission:
   - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first submit attempt failed before job creation because the cluster required a scheduler partition.
+  - The second submit attempt failed before job creation because the cluster also required a scheduler account.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded with site scheduler arguments provided only through temporary environment variables.
   - Train/eval job IDs:
-    - `r009_docloop_first_token_t7`: eval `5040674`
-    - `r009_detached_first_token_full_t10`: train `5040675`, eval `5040676`
-    - `r009_first_token_neg3_t10`: train `5040677`, eval `5040678`
-  - Postprocess job ID: `5040679`
-  - Postprocess dependency: `afterany:5040674:5040676:5040678`
-- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_009_dev/scoreboard.json`.
+    - `r011_inbatch_hybrid_first_token_t10`: train `5092527`, eval `5092528`
+    - `r011_pairwise_rank_first_token_t10`: train `5092529`, eval `5092530`
+  - Postprocess job ID: `5092531`
+  - Postprocess dependency: `afterany:5092528:5092530`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_011_dev/scoreboard.json`.
 
 ## 2026-06-21 Batch 009 Dev Standalone Result And Repair
 

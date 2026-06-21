@@ -9,9 +9,11 @@ def retrieval_loss(
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
 ) -> Dict[str, torch.Tensor]:
-    del use_inbatch
+    if inbatch_weight < 0:
+        raise ValueError("inbatch_weight must be non-negative.")
     batch_size = q_emb.size(0)
     pos_scores = (q_emb * pos_emb).sum(dim=-1, keepdim=True)
     neg_scores = torch.einsum("bd,bkd->bk", q_emb, neg_emb)
@@ -20,9 +22,16 @@ def retrieval_loss(
     hard_targets = torch.zeros(batch_size, dtype=torch.long, device=q_emb.device)
     loss_hard = F.cross_entropy(hard_logits, hard_targets)
     loss_inbatch = torch.zeros((), dtype=loss_hard.dtype, device=q_emb.device)
+    loss = loss_hard
+
+    if use_inbatch:
+        inbatch_logits = torch.matmul(q_emb, pos_emb.transpose(0, 1)) / tau
+        inbatch_targets = torch.arange(batch_size, dtype=torch.long, device=q_emb.device)
+        loss_inbatch = F.cross_entropy(inbatch_logits, inbatch_targets)
+        loss = loss_hard + float(inbatch_weight) * loss_inbatch
 
     return {
-        "loss": loss_hard,
+        "loss": loss,
         "loss_hard": loss_hard.detach(),
         "loss_inbatch": loss_inbatch.detach(),
     }
@@ -33,7 +42,8 @@ def loopwise_loss(
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
 ) -> Dict[str, torch.Tensor]:
     loop_losses = []
     hard_losses = []
@@ -41,7 +51,14 @@ def loopwise_loss(
     output: Dict[str, torch.Tensor] = {}
 
     for idx, q_emb in enumerate(q_loops, start=1):
-        loss_dict = retrieval_loss(q_emb, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)
+        loss_dict = retrieval_loss(
+            q_emb,
+            pos_emb,
+            neg_emb,
+            tau=tau,
+            use_inbatch=use_inbatch,
+            inbatch_weight=inbatch_weight,
+        )
         loop_losses.append(loss_dict["loss"])
         hard_losses.append(loss_dict["loss_hard"])
         inbatch_losses.append(loss_dict["loss_inbatch"])
@@ -58,7 +75,8 @@ def loopwise_tail_weighted_loss(
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
     gamma: float = 1.25,
 ) -> Dict[str, torch.Tensor]:
     if gamma <= 0:
@@ -70,7 +88,14 @@ def loopwise_tail_weighted_loss(
     output: Dict[str, torch.Tensor] = {}
 
     for idx, q_emb in enumerate(q_loops, start=1):
-        loss_dict = retrieval_loss(q_emb, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)
+        loss_dict = retrieval_loss(
+            q_emb,
+            pos_emb,
+            neg_emb,
+            tau=tau,
+            use_inbatch=use_inbatch,
+            inbatch_weight=inbatch_weight,
+        )
         loop_losses.append(loss_dict["loss"])
         hard_losses.append(loss_dict["loss_hard"])
         inbatch_losses.append(loss_dict["loss_inbatch"])
@@ -95,12 +120,20 @@ def loopwise_consistency_loss(
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
     consistency_lambda: float = 0.05,
 ) -> Dict[str, torch.Tensor]:
     if consistency_lambda < 0:
         raise ValueError("consistency_lambda must be non-negative.")
-    output = loopwise_loss(q_loops, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)
+    output = loopwise_loss(
+        q_loops,
+        pos_emb,
+        neg_emb,
+        tau=tau,
+        use_inbatch=use_inbatch,
+        inbatch_weight=inbatch_weight,
+    )
     if len(q_loops) < 2 or consistency_lambda == 0:
         consistency = torch.zeros((), dtype=output["loss"].dtype, device=output["loss"].device)
     else:
@@ -114,12 +147,57 @@ def loopwise_consistency_loss(
     return output
 
 
+def pairwise_ranking_loss(
+    q_emb: torch.Tensor,
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    tau: float = 0.05,
+    margin: float = 0.0,
+) -> Dict[str, torch.Tensor]:
+    pos_scores = (q_emb * pos_emb).sum(dim=-1, keepdim=True)
+    neg_scores = torch.einsum("bd,bkd->bk", q_emb, neg_emb)
+    pairwise_terms = F.softplus((neg_scores - pos_scores + float(margin)) / tau)
+    loss_pairwise = pairwise_terms.mean()
+    loss_inbatch = torch.zeros((), dtype=loss_pairwise.dtype, device=q_emb.device)
+    return {
+        "loss": loss_pairwise,
+        "loss_pairwise": loss_pairwise.detach(),
+        "loss_hard": loss_pairwise.detach(),
+        "loss_inbatch": loss_inbatch.detach(),
+    }
+
+
+def loopwise_pairwise_loss(
+    q_loops: List[torch.Tensor],
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    tau: float = 0.05,
+    margin: float = 0.0,
+) -> Dict[str, torch.Tensor]:
+    loop_losses = []
+    pairwise_losses = []
+    output: Dict[str, torch.Tensor] = {}
+
+    for idx, q_emb in enumerate(q_loops, start=1):
+        loss_dict = pairwise_ranking_loss(q_emb, pos_emb, neg_emb, tau=tau, margin=margin)
+        loop_losses.append(loss_dict["loss"])
+        pairwise_losses.append(loss_dict["loss_pairwise"])
+        output[f"loss_t{idx}"] = loss_dict["loss"].detach()
+
+    zero = torch.zeros((), dtype=loop_losses[0].dtype, device=loop_losses[0].device)
+    output["loss"] = torch.stack(loop_losses).mean()
+    output["loss_pairwise_avg"] = torch.stack(pairwise_losses).mean()
+    output["loss_hard_avg"] = output["loss_pairwise_avg"]
+    output["loss_inbatch_avg"] = zero
+    return output
+
+
 def final_loop_loss(
     q_loops: List[torch.Tensor],
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
 ) -> Dict[str, torch.Tensor]:
     output = retrieval_loss(q_loops[-1], pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)
     output["final_loop_loss"] = output["loss"].detach()
@@ -131,6 +209,6 @@ def standard_loss(
     pos_emb: torch.Tensor,
     neg_emb: torch.Tensor,
     tau: float = 0.05,
-    use_inbatch: bool = True,
+    use_inbatch: bool = False,
 ) -> Dict[str, torch.Tensor]:
     return retrieval_loss(q_emb, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)

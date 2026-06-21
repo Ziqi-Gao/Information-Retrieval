@@ -290,6 +290,8 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             ("epochs", "EPOCHS"),
             ("max_steps", "MAX_STEPS"),
             ("save_steps", "SAVE_STEPS"),
+            ("inbatch_weight", "INBATCH_WEIGHT"),
+            ("pairwise_margin", "PAIRWISE_MARGIN"),
             ("loop_loss_gamma", "LOOP_LOSS_GAMMA"),
             ("loop_consistency_lambda", "LOOP_CONSISTENCY_LAMBDA"),
         ]:

@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_010_dev",
+    "batch_id": "batch_011_dev",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_010_dev.yaml",
-    "plan": "outputs/goal/runs/batch_010_dev/submission_plan.json",
+    "manifest": "experiments/batches/batch_011_dev.yaml",
+    "plan": "outputs/goal/runs/batch_011_dev/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "5076618"
+    "postprocess_job_id": "5092531"
   },
   "final_tasks": [
     "SciFact",
@@ -40,52 +40,121 @@
     "TRECCOVID"
   ],
   "last_decision": {
-    "batch_id": "batch_010_dev",
-    "decided_at": "2026-06-21T15:44:19Z",
-    "decision": "Submitted exactly one dev-only portfolio batch after batch_009_dev_repair confirmed local-search exhaustion. The portfolio contains two standalone_main training-objective candidates and one diagnostic candidate-internal self-residual probe.",
-    "next_manifest": "experiments/batches/batch_010_dev.yaml",
-    "next_plan": "outputs/goal/runs/batch_010_dev/submission_plan.json",
-    "source_scoreboard": "outputs/goal/runs/batch_009_dev_repair/scoreboard.json"
+    "batch_id": "batch_011_dev",
+    "decided_at": "2026-06-21T18:51:26Z",
+    "decision": "Submitted exactly one dev-only standalone_main portfolio batch after batch_010_dev confirmed local-search exhaustion. The portfolio tests in-batch hybrid contrastive loss and pairwise ranking loss, both with candidate-only scoring.",
+    "job_ids": {
+      "postprocess": "5092531",
+      "r011_inbatch_hybrid_first_token_t10": {
+        "eval": "5092528",
+        "train": "5092527"
+      },
+      "r011_pairwise_rank_first_token_t10": {
+        "eval": "5092530",
+        "train": "5092529"
+      }
+    },
+    "next_manifest": "experiments/batches/batch_011_dev.yaml",
+    "next_plan": "outputs/goal/runs/batch_011_dev/submission_plan.json",
+    "research_plan": "docs/research_design_round_004.md",
+    "source_scoreboard": "outputs/goal/runs/batch_010_dev/scoreboard.json"
   },
   "last_dev_result": {
-    "batch_id": "batch_009_dev_repair",
-    "best_candidate_id": "r009_docloop_first_token_t7_repair__loop7",
-    "best_mean_delta": -0.001124999999999994,
-    "best_min_delta": -0.011259999999999992,
-    "candidate_track": "standalone_main",
+    "batch_id": "batch_010_dev",
+    "best_candidate_id": "r010_self_residual_first_token_t7_a50__loop7",
+    "best_candidate_track": "diagnostic",
+    "best_mean_delta": -0.001125000000000008,
+    "best_min_delta": -0.011149999999999993,
     "candidates": [
       {
-        "candidate_id": "r009_docloop_first_token_t7_repair__loop7",
+        "candidate_id": "r010_self_residual_first_token_t7_a50__loop7",
+        "candidate_track": "diagnostic",
         "dev_deltas": {
-          "FiQA2018": -0.011259999999999992,
-          "NFCorpus": 0.003589999999999982,
+          "FiQA2018": -0.011149999999999993,
+          "NFCorpus": 0.003709999999999991,
           "SCIDOCS": -0.0010199999999999931,
-          "SciFact": 0.004190000000000027
+          "SciFact": 0.0039599999999999635
         },
         "dev_tasks_lost": 2,
         "dev_tasks_won": 2,
+        "fusion_diagnostic_pass": false,
         "main_goal_success": false,
-        "mean_delta": -0.001124999999999994,
-        "min_delta": -0.011259999999999992,
+        "mean_delta": -0.001125000000000008,
+        "min_delta": -0.011149999999999993,
         "minimal_positive_signal": false,
         "publishable_score_candidate": false,
+        "purpose": "dev",
         "research_grade_threshold_pass": false,
-        "run_id": "r009_docloop_first_token_t7_repair",
-        "status": "completed"
+        "run_id": "r010_self_residual_first_token_t7_a50",
+        "status": "completed",
+        "tasks_lost": 5,
+        "tasks_valid": 4,
+        "tasks_won": 2
+      },
+      {
+        "candidate_id": "r010_tail_weighted_first_token_t10__loop10",
+        "candidate_track": "standalone_main",
+        "dev_deltas": {
+          "FiQA2018": -0.014910000000000007,
+          "NFCorpus": -0.008480000000000015,
+          "SCIDOCS": -0.0029800000000000104,
+          "SciFact": -0.017430000000000057
+        },
+        "dev_tasks_lost": 4,
+        "dev_tasks_won": 0,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "mean_delta": -0.010950000000000022,
+        "min_delta": -0.017430000000000057,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r010_tail_weighted_first_token_t10",
+        "status": "completed",
+        "tasks_lost": 7,
+        "tasks_valid": 4,
+        "tasks_won": 0
+      },
+      {
+        "candidate_id": "r010_consistency_first_token_t10__loop10",
+        "candidate_track": "standalone_main",
+        "dev_deltas": {
+          "FiQA2018": -0.026480000000000004,
+          "NFCorpus": -0.01396,
+          "SCIDOCS": -0.005780000000000007,
+          "SciFact": -0.037410000000000054
+        },
+        "dev_tasks_lost": 4,
+        "dev_tasks_won": 0,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "mean_delta": -0.020907500000000016,
+        "min_delta": -0.037410000000000054,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r010_consistency_first_token_t10",
+        "status": "completed",
+        "tasks_lost": 7,
+        "tasks_valid": 4,
+        "tasks_won": 0
       }
     ],
-    "dev_tasks_lost": 2,
     "dev_tasks_valid": 4,
-    "dev_tasks_won": 2,
-    "evaluated_at": "2026-06-21T05:23:01Z",
-    "failure_pattern": "The repaired document-loop candidate exactly matched the batch_006 first-token loop-7 dev pattern: SciFact and NFCorpus improved, while SCIDOCS and FiQA2018 regressed. It did not produce a viable global dev signal and cannot trigger main_goal_success because it is dev-only.",
+    "evaluated_at": "2026-06-21T18:07:08Z",
+    "failure_pattern": "Both standalone_main candidates in batch_010_dev regressed on all four dev tasks. The diagnostic self-residual candidate improved SciFact and NFCorpus but regressed on FiQA2018 and SCIDOCS and cannot trigger main_goal_success.",
     "fusion_diagnostic_pass": false,
     "main_goal_success": false,
     "minimal_positive_signal": false,
+    "postprocess_done": true,
+    "postprocess_failed": false,
     "publishable_score_candidate": false,
     "purpose": "dev",
     "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_009_dev_repair/scoreboard.json"
+    "source_scoreboard": "outputs/goal/runs/batch_010_dev/scoreboard.json",
+    "strong_viable_global_dev_signal": false
   },
   "last_final_validation": {
     "batch_id": "batch_003_final_repair",
@@ -106,30 +175,31 @@
     "tasks_won": 5
   },
   "last_postprocess_check": {
-    "checked_at": "2026-06-21T15:37:56Z",
-    "latest_batch": "batch_009_dev_repair",
+    "checked_at": "2026-06-21T18:42:51Z",
+    "latest_batch": "batch_010_dev",
     "latest_batch_status": "postprocess_completed",
-    "latest_submitted_batch": "batch_009_dev_repair",
+    "latest_submitted_batch": "batch_010_dev",
     "postprocess_done": true,
     "postprocess_failed": false,
-    "result": "Slurm-native postprocess completed and wrote collected_results.csv plus scoreboard.json. Batch_009_dev_repair was dev-only standalone_main exploration; it cannot trigger main_goal_success. The candidate won SciFact and NFCorpus but regressed on SCIDOCS and FiQA2018."
+    "result": "Slurm-native postprocess completed and wrote collected_results.csv plus scoreboard.json. Batch_010_dev was dev-only mixed standalone_main/diagnostic exploration and cannot trigger main_goal_success."
   },
-  "last_scoreboard": "outputs/goal/runs/batch_009_dev_repair/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_010_dev/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-21T15:37:56Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_009_dev_repair --update-state",
-    "result": "Local status refresh hung while querying Slurm and was terminated. postprocess_done.json and scoreboard.json were used as terminal evidence."
+    "attempted_at": "2026-06-21T18:42:51Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_010_dev --update-state",
+    "result": "Local status refresh hung without output while querying Slurm. postprocess_done.json, scoreboard.json, and subagent workflow audit were used as terminal evidence."
   },
   "last_validation": {
     "bash_syntax": "passed",
-    "batch_id": "batch_010_dev",
+    "batch_id": "batch_011_dev",
+    "code_risk_subagent_gate": "passed after correcting misplaced notebook history block",
     "compileall": "passed",
     "dry_run_submit_postprocess": "passed",
     "git_diff_check": "passed",
-    "manifest_validation": "passed with expected dev-only standalone warnings for two standalone_main candidates",
+    "manifest_validation": "passed with expected dev-only standalone warnings after prose-only audit token correction",
     "preflight": "passed",
-    "scoreboard_self_test": "passed",
-    "validated_at": "2026-06-21T15:44:19Z"
+    "scoreboard_self_test": "passed inside preflight",
+    "validated_at": "2026-06-21T18:51:26Z"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -137,7 +207,7 @@
     "updated_at": "2026-06-20T02:47:51Z"
   },
   "local_search": {
-    "decided_at": "2026-06-21T15:37:56Z",
+    "decided_at": "2026-06-21T18:42:51Z",
     "evidence_batches": [
       "batch_004_dev",
       "batch_005_dev",
@@ -145,62 +215,55 @@
       "batch_007_dev",
       "batch_008_dev",
       "batch_009_dev",
-      "batch_009_dev_repair"
+      "batch_009_dev_repair",
+      "batch_010_dev"
     ],
-    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_009_dev_repair completed the document-loop repair and still showed the recurring SciFact/NFCorpus gains with FiQA2018/SCIDOCS regressions.",
+    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_010_dev further falsified loop-loss tail weighting and adjacent-loop consistency; diagnostic self-residual remained local to SciFact/NFCorpus and regressed on FiQA2018/SCIDOCS.",
     "status": "exhausted"
   },
-  "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect outputs/goal/runs/batch_010_dev/scoreboard.json.",
+  "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect outputs/goal/runs/batch_011_dev/scoreboard.json.",
   "open_jobs": [
     {
-      "batch_id": "batch_010_dev",
-      "job_id": "5076613",
-      "run_id": "r010_tail_weighted_first_token_t10",
+      "batch_id": "batch_011_dev",
+      "job_id": "5092527",
+      "run_id": "r011_inbatch_hybrid_first_token_t10",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_010_dev",
-      "depends_on": "5076613",
-      "job_id": "5076614",
-      "run_id": "r010_tail_weighted_first_token_t10",
+      "batch_id": "batch_011_dev",
+      "depends_on": "5092527",
+      "job_id": "5092528",
+      "run_id": "r011_inbatch_hybrid_first_token_t10",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_010_dev",
-      "job_id": "5076615",
-      "run_id": "r010_consistency_first_token_t10",
+      "batch_id": "batch_011_dev",
+      "job_id": "5092529",
+      "run_id": "r011_pairwise_rank_first_token_t10",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_010_dev",
-      "depends_on": "5076615",
-      "job_id": "5076616",
-      "run_id": "r010_consistency_first_token_t10",
+      "batch_id": "batch_011_dev",
+      "depends_on": "5092529",
+      "job_id": "5092530",
+      "run_id": "r011_pairwise_rank_first_token_t10",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_010_dev",
-      "depends_on": null,
-      "job_id": "5076617",
-      "run_id": "r010_self_residual_first_token_t7_a50",
-      "status": "submitted",
-      "type": "eval"
-    },
-    {
-      "batch_id": "batch_010_dev",
-      "depends_on": "afterany:5076614:5076616:5076617",
-      "job_id": "5076618",
-      "run_id": "batch_010_dev",
+      "batch_id": "batch_011_dev",
+      "depends_on": "afterany:5092528:5092530",
+      "job_id": "5092531",
+      "run_id": "batch_011_dev",
       "status": "submitted",
       "type": "postprocess"
     }
   ],
   "phase": "SUBMIT_BATCH",
-  "postprocess_job_id": "5076618",
+  "postprocess_job_id": "5092531",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
@@ -208,18 +271,17 @@
     "dirty": false
   },
   "research_design_mode": {
-    "claim_track": "mixed standalone_main and diagnostic",
-    "entered_at": "2026-06-21T15:37:56Z",
-    "plan": "docs/research_design_round_003.md",
+    "claim_track": "standalone_main",
+    "entered_at": "2026-06-21T18:42:51Z",
+    "plan": "docs/research_design_round_004.md",
     "portfolio_candidates": [
-      "r010_tail_weighted_first_token_t10",
-      "r010_consistency_first_token_t10",
-      "r010_self_residual_first_token_t7_a50"
+      "r011_inbatch_hybrid_first_token_t10",
+      "r011_pairwise_rank_first_token_t10"
     ],
     "purpose": "dev",
-    "selected_batch": "batch_010_dev",
-    "selected_manifest": "experiments/batches/batch_010_dev.yaml",
-    "triggered_by": "batch_009_dev_repair"
+    "selected_batch": "batch_011_dev",
+    "selected_manifest": "experiments/batches/batch_011_dev.yaml",
+    "triggered_by": "batch_010_dev"
   },
   "win_margin": 0.001
 }

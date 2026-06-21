@@ -1,0 +1,103 @@
+batch_id: batch_011_dev
+description: "Dev-only standalone portfolio testing broader retrieval training objectives after loop-local search exhaustion."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r011_inbatch_hybrid_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "The first-token loop family may need broader contrastive pressure than per-sample hard negatives; a conservative in-batch term may improve FiQA2018 and SCIDOCS transfer while using only candidate pipeline scoring."
+    mechanism: "Train first-token loopwise retrieval with hard negatives plus a candidate-only in-batch positive classification term, then evaluate loop_idx=10 globally on dev tasks."
+    expected_effect: "Tests whether the recurring SciFact/NFCorpus-only gains are caused by an overly local hard-negative objective."
+    version: loop_inbatch_hybrid_first_token
+    config: configs/goal_batch_011_inbatch_hybrid_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_inbatch_hybrid_first_token with inbatch_weight=0.25 for one full epoch and evaluate loop_idx=10 for every dev task; use no frozen-standard checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Small batch size may make in-batch negatives noisy or create false negatives."
+      - "The in-batch term may overpower per-sample hard negatives and reduce all dev scores."
+      - "First-token loop drift may persist even with broader contrastive pressure."
+    train:
+      epochs: 1
+      save_steps: 1000
+      inbatch_weight: 0.25
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only the candidate training loss for a registered standalone model; scoring remains candidate-only with unchanged metric, baseline, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r011_pairwise_rank_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Hard-negative softmax may be too sharp for cross-domain transfer; a pairwise softplus ranking loss may reduce overfitting to RLHN negative ordering."
+    mechanism: "Train first-token loopwise retrieval with a pairwise positive-versus-negative ranking objective, then evaluate loop_idx=10 globally on dev tasks."
+    expected_effect: "Tests a different standalone ranking objective after lower negative count and loop-local objective tweaks failed."
+    version: loop_pairwise_first_token
+    config: configs/goal_batch_011_pairwise_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_pairwise_first_token with pairwise_margin=0.0 for one full epoch and evaluate loop_idx=10 for every dev task; use no frozen-standard checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Pairwise loss may weaken absolute discrimination and underperform cross-entropy on all dev tasks."
+      - "The first-token loop mechanism may remain the dominant failure source regardless of ranking loss."
+      - "The margin-free softplus objective may not sufficiently separate hard negatives."
+    train:
+      epochs: 1
+      save_steps: 1000
+      pairwise_margin: 0.0
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only the candidate loss shape while preserving encoder-only training, candidate-only scoring, frozen baseline comparison, and protocol thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

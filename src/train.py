@@ -11,7 +11,14 @@ from transformers import get_linear_schedule_with_warmup
 
 from .data import RLHNRetrievalDataset, collate_fn
 from .experiments import get_version_spec, version_names
-from .losses import final_loop_loss, loopwise_consistency_loss, loopwise_loss, loopwise_tail_weighted_loss, standard_loss
+from .losses import (
+    final_loop_loss,
+    loopwise_consistency_loss,
+    loopwise_loss,
+    loopwise_pairwise_loss,
+    loopwise_tail_weighted_loss,
+    standard_loss,
+)
 from .model import LoopMatryoshkaRetriever
 from .utils import (
     add_bool_arg,
@@ -44,6 +51,8 @@ DEFAULTS: Dict[str, Any] = {
     "weight_decay": 0.01,
     "warmup_ratio": 0.05,
     "tau": 0.05,
+    "inbatch_weight": 1.0,
+    "pairwise_margin": 0.0,
     "loop_loss_gamma": 1.25,
     "loop_consistency_lambda": 0.05,
     "bf16": False,
@@ -80,11 +89,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--warmup_ratio", type=float, default=None)
     parser.add_argument("--tau", type=float, default=None)
+    parser.add_argument("--inbatch_weight", type=float, default=None)
+    parser.add_argument("--pairwise_margin", type=float, default=None)
     parser.add_argument("--loop_loss_gamma", type=float, default=None)
     parser.add_argument("--loop_consistency_lambda", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
-    add_bool_arg(parser, "use_inbatch", "Compatibility flag; training objective is hard-negative only.")
+    add_bool_arg(parser, "use_inbatch", "Enable in-batch loss for versions that explicitly support it.")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--log_steps", type=int, default=None)
     parser.add_argument("--save_steps", type=int, default=None)
@@ -117,8 +128,13 @@ def parse_args() -> argparse.Namespace:
         args.loop_query_mode = version_spec.loop_query_mode
     if args.bf16 and args.fp16:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
-    if args.use_inbatch:
-        print("use_inbatch=True was requested, but this experiment uses hard-negative loss only. Forcing use_inbatch=False.")
+    loss_type = version_spec.loss_type
+    if loss_type == "loopwise_inbatch_hybrid":
+        if not args.use_inbatch:
+            print("Version uses loopwise_inbatch_hybrid; forcing use_inbatch=True.")
+        args.use_inbatch = True
+    elif args.use_inbatch:
+        print("use_inbatch=True was requested, but this version uses hard-negative loss only. Forcing use_inbatch=False.")
         args.use_inbatch = False
     return args
 
@@ -157,6 +173,23 @@ def select_loss(
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "loopwise_inbatch_hybrid":
+        return loopwise_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=True,
+            inbatch_weight=args.inbatch_weight,
+        )
+    if loss_type == "loopwise_pairwise":
+        return loopwise_pairwise_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            margin=args.pairwise_margin,
+        )
     if loss_type == "loopwise_tail_weighted":
         return loopwise_tail_weighted_loss(
             q_loops,
@@ -164,6 +197,7 @@ def select_loss(
             neg_emb,
             tau=args.tau,
             use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
             gamma=args.loop_loss_gamma,
         )
     if loss_type == "loopwise_consistency":
@@ -173,6 +207,7 @@ def select_loss(
             neg_emb,
             tau=args.tau,
             use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
             consistency_lambda=args.loop_consistency_lambda,
         )
     raise ValueError(f"Unknown loss_type {loss_type!r} for version: {version}")
@@ -227,12 +262,13 @@ def run_sanity_checks(
     if tuple(neg_emb.shape) != (batch_size, num_negatives, model.embedding_dim):
         raise AssertionError(f"neg_emb shape mismatch: got {tuple(neg_emb.shape)}.")
 
-    loss_inbatch = loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))
-    if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
-        raise AssertionError("In-batch loss must be logged as 0.0 and excluded from total loss.")
-
     loss_type = get_version_spec(args.version).loss_type
-    if loss_type == "loopwise":
+    loss_inbatch = loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))
+    if loss_type != "loopwise_inbatch_hybrid":
+        if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
+            raise AssertionError("In-batch loss must be logged as 0.0 and excluded from this loss.")
+
+    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise"}:
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
         expected_loss = torch.stack(loop_loss_values).mean()
     elif loss_type == "loopwise_tail_weighted":
@@ -253,7 +289,7 @@ def run_sanity_checks(
     else:
         expected_loss = loss_dict.get("loss_hard", loss_dict.get("final_loop_loss"))
     if expected_loss is None or not torch.allclose(loss_dict["loss"].detach(), expected_loss.detach(), rtol=1e-4, atol=1e-5):
-        raise AssertionError("Total loss must equal hard-negative loss only.")
+        raise AssertionError("Total loss must equal the configured retrieval objective.")
 
     debug = model.last_query_loop_debug
     print("Sanity checks:")
@@ -274,7 +310,7 @@ def run_sanity_checks(
         f"last_input_len={debug.get('last_input_length')}"
     )
     print(f"  query_pooling_excludes_memory_tokens={debug.get('pooling_excludes_memory_tokens', True)}")
-    print("  loss_check=hard_negative_only")
+    print(f"  loss_check={loss_type}")
 
 
 def log_row(
@@ -297,11 +333,17 @@ def log_row(
     if torch.cuda.is_available():
         row["gpu_memory_allocated_gb"] = torch.cuda.memory_allocated() / 1e9
     loss_type = get_version_spec(args.version).loss_type
-    if loss_type in {"loopwise", "loopwise_tail_weighted", "loopwise_consistency"}:
+    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_tail_weighted", "loopwise_consistency"}:
         for idx in range(1, args.tmax + 1):
             key = f"loss_t{idx}"
             if key in loss_dict:
                 row[key] = tensor_to_float(loss_dict[key])
+    if loss_type == "loopwise_inbatch_hybrid":
+        row["inbatch_weight"] = float(args.inbatch_weight)
+    if loss_type == "loopwise_pairwise":
+        row["pairwise_margin"] = float(args.pairwise_margin)
+        if "loss_pairwise_avg" in loss_dict:
+            row["loss_pairwise"] = tensor_to_float(loss_dict["loss_pairwise_avg"])
     if loss_type == "loopwise_tail_weighted" and "loop_loss_gamma" in loss_dict:
         row["loop_loss_gamma"] = tensor_to_float(loss_dict["loop_loss_gamma"])
     if loss_type == "loopwise_consistency":
