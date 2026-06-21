@@ -1,0 +1,101 @@
+batch_id: batch_012_dev
+description: "Dev-only standalone portfolio testing data sampling and embedding pooling after objective-local search failed."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r012_seeded_sampling_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "The fixed RLHN first-positive and first-k-negative training construction may encode dataset ordering artifacts; seeded random positive and negative sampling may reduce cross-domain transfer regressions."
+    mechanism: "Train first-token loopwise retrieval with deterministic seeded random positive and negative passage sampling, then evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests whether the repeated FiQA2018 and SCIDOCS regressions are partly caused by the training data sampling rule rather than loop depth, memory mode, or loss family."
+    version: loop_matryoshka_first_token_seeded_sampling
+    config: configs/goal_batch_012_seeded_sampling_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token_seeded_sampling for one full epoch using seeded_random passage sampling and evaluate loop_idx=10 for every dev task; use no frozen-standard checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Randomized passage sampling may inject noise and reduce all dev scores."
+      - "RLHN ordering may not be the dominant failure source, leaving FiQA2018 and SCIDOCS regressions unchanged."
+      - "A single deterministic sample per query may still under-cover useful positives or negatives."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only candidate training data sampling with deterministic seeding; scoring remains candidate-only with unchanged metric, baseline, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r012_first_pool_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Mean-pooled loop embeddings may be the wrong extraction rule for this first-token memory family; using the first query/doc token as the retrieval embedding may reduce representation drift without adding parameters."
+    mechanism: "Train first-token loopwise retrieval with first-token embedding pooling for queries and documents, then evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests representation extraction independently of loss-family and local loop-depth sweeps."
+    version: loop_matryoshka_first_token_first_pool
+    config: configs/goal_batch_012_first_pool_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token_first_pool for one full epoch with first-token retrieval embedding pooling and evaluate loop_idx=10 for every dev task; use no frozen-standard checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "First-token pooling may underperform mean pooling on passage retrieval."
+      - "Representation drift may be dominated by loop recurrence rather than pooling choice."
+      - "The candidate may regress globally if first-token embeddings are less stable across domains."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Uses a parameter-free candidate embedding extraction rule and preserves encoder-only training, candidate-only scoring, frozen baseline comparison, and protocol thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

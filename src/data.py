@@ -1,6 +1,6 @@
 import json
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import torch
 from datasets import load_dataset
@@ -42,20 +42,50 @@ def passage_to_text(passage: Any, field_name: str = "passage") -> str:
     )
 
 
-def _first_positive(item: Dict[str, Any]) -> str:
+PASSAGE_SAMPLING_STRATEGIES = {"first", "seeded_random"}
+
+
+def _positive_passages(item: Dict[str, Any]) -> Sequence[Any]:
     positives = item.get("positive_passages", None)
     if not isinstance(positives, (list, tuple)) or not positives:
         raise ValueError("positive_passages must be a non-empty list.")
+    return positives
+
+
+def _negative_passages(item: Dict[str, Any]) -> Sequence[Any]:
+    negatives = item.get("negative_passages", None)
+    if not isinstance(negatives, (list, tuple)):
+        raise ValueError("negative_passages must be a list.")
+    return negatives
+
+
+def _first_positive(item: Dict[str, Any]) -> str:
+    positives = _positive_passages(item)
     return passage_to_text(positives[0], field_name="positive_passages[0]")
 
 
 def _first_k_negatives(item: Dict[str, Any], k: int) -> Optional[List[str]]:
-    negatives = item.get("negative_passages", None)
-    if not isinstance(negatives, (list, tuple)):
-        raise ValueError("negative_passages must be a list.")
+    negatives = _negative_passages(item)
     if len(negatives) < k:
         return None
     return [passage_to_text(negative, field_name=f"negative_passages[{idx}]") for idx, negative in enumerate(negatives[:k])]
+
+
+def _sampled_positive_and_negatives(item: Dict[str, Any], k: int, seed: int, idx: int) -> Optional[tuple[str, List[str]]]:
+    positives = _positive_passages(item)
+    negatives = _negative_passages(item)
+    if len(negatives) < k:
+        return None
+
+    rng = random.Random((int(seed) + 1) * 1_000_003 + int(idx))
+    positive_idx = rng.randrange(len(positives))
+    negative_indices = rng.sample(range(len(negatives)), k)
+    positive = passage_to_text(positives[positive_idx], field_name=f"positive_passages[{positive_idx}]")
+    sampled_negatives = [
+        passage_to_text(negatives[negative_idx], field_name=f"negative_passages[{negative_idx}]")
+        for negative_idx in negative_indices
+    ]
+    return positive, sampled_negatives
 
 
 class RLHNRetrievalDataset(torch.utils.data.Dataset):
@@ -66,10 +96,15 @@ class RLHNRetrievalDataset(torch.utils.data.Dataset):
         smoke_test_sample_size: Optional[int] = None,
         num_negatives: int = 7,
         seed: int = 42,
+        passage_sampling_strategy: str = "first",
     ) -> None:
         super().__init__()
         self.dataset_name = dataset_name
         self.num_negatives = num_negatives
+        if passage_sampling_strategy not in PASSAGE_SAMPLING_STRATEGIES:
+            known = ", ".join(sorted(PASSAGE_SAMPLING_STRATEGIES))
+            raise ValueError(f"passage_sampling_strategy must be one of {{{known}}}, got {passage_sampling_strategy!r}.")
+        self.passage_sampling_strategy = str(passage_sampling_strategy)
         target_size = smoke_test_sample_size if smoke_test_sample_size is not None else train_sample_size
 
         raw = load_dataset(dataset_name, split="train")
@@ -86,8 +121,16 @@ class RLHNRetrievalDataset(torch.utils.data.Dataset):
                 query = item.get("query", None)
                 if not isinstance(query, str) or not query.strip():
                     raise ValueError("query must be a non-empty string.")
-                positive = _first_positive(item)
-                negatives = _first_k_negatives(item, num_negatives)
+                if self.passage_sampling_strategy == "seeded_random":
+                    sampled = _sampled_positive_and_negatives(item, num_negatives, seed=seed, idx=int(idx))
+                    if sampled is None:
+                        negatives = None
+                        positive = ""
+                    else:
+                        positive, negatives = sampled
+                else:
+                    positive = _first_positive(item)
+                    negatives = _first_k_negatives(item, num_negatives)
             except Exception as exc:  # noqa: BLE001 - include sample structure in the final error.
                 if first_error is None:
                     first_error = exc

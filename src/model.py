@@ -12,6 +12,7 @@ from .utils import ensure_dir, write_json
 
 LOOP_MEMORY_MODES = {"first_token", "mean_pool", "none", "token_concat"}
 LOOP_QUERY_MODES = {"initial_embedding", "recurrent_hidden"}
+EMBEDDING_POOLING_MODES = {"mean_pool", "first_token"}
 
 
 class LoopMatryoshkaRetriever(nn.Module):
@@ -25,6 +26,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         detach_memory: bool = False,
         loop_memory_mode: str = "mean_pool",
         loop_query_mode: str = "initial_embedding",
+        embedding_pooling_mode: str = "mean_pool",
     ) -> None:
         super().__init__()
         if tmax < 1:
@@ -46,6 +48,10 @@ class LoopMatryoshkaRetriever(nn.Module):
             known = ", ".join(sorted(LOOP_QUERY_MODES))
             raise ValueError(f"loop_query_mode must be one of {{{known}}}, got {loop_query_mode!r}.")
         self.loop_query_mode = str(loop_query_mode)
+        if embedding_pooling_mode not in EMBEDDING_POOLING_MODES:
+            known = ", ".join(sorted(EMBEDDING_POOLING_MODES))
+            raise ValueError(f"embedding_pooling_mode must be one of {{{known}}}, got {embedding_pooling_mode!r}.")
+        self.embedding_pooling_mode = str(embedding_pooling_mode)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         self.encoder = AutoModel.from_pretrained(model_name_or_path)
@@ -59,6 +65,13 @@ class LoopMatryoshkaRetriever(nn.Module):
         mask = attention_mask.unsqueeze(-1).float()
         pooled = (last_hidden_state * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-6)
         return pooled
+
+    def pool_hidden(self, last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        if self.embedding_pooling_mode == "mean_pool":
+            return self.mean_pool(last_hidden_state, attention_mask)
+        if self.embedding_pooling_mode == "first_token":
+            return last_hidden_state[:, 0, :]
+        raise ValueError(f"Unknown embedding_pooling_mode: {self.embedding_pooling_mode}")
 
     def _device(self, device: Optional[Union[torch.device, str]] = None) -> torch.device:
         if device is not None:
@@ -77,7 +90,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         )
         encoded = {key: value.to(device) for key, value in encoded.items()}
         outputs = self.encoder(**encoded)
-        pooled = self.mean_pool(outputs.last_hidden_state, encoded["attention_mask"])
+        pooled = self.pool_hidden(outputs.last_hidden_state, encoded["attention_mask"])
         return F.normalize(pooled, p=2, dim=-1)
 
     def _memory_tokens_from_query_hidden(
@@ -145,8 +158,9 @@ class LoopMatryoshkaRetriever(nn.Module):
             outputs = self.encoder(inputs_embeds=inputs_embeds, attention_mask=current_attention_mask)
             memory_token_count = inputs_embeds.size(1) - query_token_length
             query_hidden = outputs.last_hidden_state[:, memory_token_count:, :]
-            pooled = self.mean_pool(query_hidden, attention_mask)
-            ht = F.normalize(pooled, p=2, dim=-1)
+            memory_pooled = self.mean_pool(query_hidden, attention_mask)
+            embedding_pooled = self.pool_hidden(query_hidden, attention_mask)
+            ht = F.normalize(embedding_pooled, p=2, dim=-1)
             states.append(ht)
 
             last_memory_tokens = int(memory_token_count)
@@ -154,7 +168,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             if t == loop_limit:
                 break
 
-            memory_tokens_tensor = self._memory_tokens_from_query_hidden(query_hidden, pooled)
+            memory_tokens_tensor = self._memory_tokens_from_query_hidden(query_hidden, memory_pooled)
             if self.loop_memory_mode == "token_concat":
                 memory_mask = attention_mask
             elif self.loop_memory_mode == "none":
@@ -179,6 +193,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             "loop_impl": self.loop_impl,
             "loop_memory_mode": self.loop_memory_mode,
             "loop_query_mode": self.loop_query_mode,
+            "embedding_pooling_mode": self.embedding_pooling_mode,
             "query_token_length": int(query_token_length),
             "last_memory_tokens": int(last_memory_tokens),
             "last_input_length": int(last_input_length),
@@ -215,14 +230,15 @@ class LoopMatryoshkaRetriever(nn.Module):
             outputs = self.encoder(inputs_embeds=inputs_embeds, attention_mask=current_attention_mask)
             memory_token_count = inputs_embeds.size(1) - doc_token_length
             doc_hidden = outputs.last_hidden_state[:, memory_token_count:, :]
-            pooled = self.mean_pool(doc_hidden, attention_mask)
-            ht = F.normalize(pooled, p=2, dim=-1)
+            memory_pooled = self.mean_pool(doc_hidden, attention_mask)
+            embedding_pooled = self.pool_hidden(doc_hidden, attention_mask)
+            ht = F.normalize(embedding_pooled, p=2, dim=-1)
             states.append(ht)
 
             if t == loop_limit:
                 break
 
-            memory_tokens_tensor = self._memory_tokens_from_query_hidden(doc_hidden, pooled)
+            memory_tokens_tensor = self._memory_tokens_from_query_hidden(doc_hidden, memory_pooled)
             if self.loop_memory_mode == "token_concat":
                 memory_mask = attention_mask
             elif self.loop_memory_mode == "none":
@@ -368,6 +384,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             "detach_memory": self.detach_memory,
             "loop_memory_mode": self.loop_memory_mode,
             "loop_query_mode": self.loop_query_mode,
+            "embedding_pooling_mode": self.embedding_pooling_mode,
             "embedding_dim": self.embedding_dim,
         }
 
@@ -415,6 +432,7 @@ def load_model(
     config.pop("embedding_dim", None)
     config.setdefault("loop_memory_mode", "mean_pool")
     config.setdefault("loop_query_mode", "initial_embedding")
+    config.setdefault("embedding_pooling_mode", "mean_pool")
     model = LoopMatryoshkaRetriever(**config)
     state = torch.load(state_path, map_location=map_location or "cpu")
     missing, unexpected = model.load_state_dict(state, strict=False)

@@ -672,6 +672,26 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
 
+## 2026-06-21 Batch 011 Dev Standalone Result
+
+- `batch_011_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
+    - `r011_inbatch_hybrid_first_token_t10`: train `5092527`, eval `5092528`
+    - `r011_pairwise_rank_first_token_t10`: train `5092529`, eval `5092530`
+  - postprocess job: `5092531`
+  - marker: `outputs/goal/runs/batch_011_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_011_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local `goal_status.py --batch-id batch_011_dev --update-state` refresh attempt hung in Slurm status querying. The postprocess marker, scoreboard, and subagent workflow audit were used as terminal evidence.
+- Batch purpose: `dev`; both candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r011_inbatch_hybrid_first_token_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.01287`, dev mean delta `-0.006275`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.00511`, `NFCorpus -0.00648`, `FiQA2018 -0.01287`, `SCIDOCS -0.00064`.
+  - `r011_pairwise_rank_first_token_t10__loop10`: track `standalone_main`, all success flags false, dev min delta `-0.03389`, dev mean delta `-0.02554`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.03389`, `NFCorpus -0.02759`, `FiQA2018 -0.02739`, `SCIDOCS -0.01329`.
+- Decision: `main_goal_success=false`. Neither standalone objective candidate produced a viable global dev signal; both regressed on every completed dev task.
+- Local search remains exhausted. Recent evidence has now falsified first-token loop-depth tuning, memory-mode variants, detached-memory training, lower negative count, document-loop symmetry, loop-loss tail weighting, adjacent-loop consistency, candidate-internal self-residual stabilization, in-batch hybrid contrastive loss, and pairwise ranking loss.
+
 ## 2026-06-21 Batch 010 Dev Mixed Portfolio Result
 
 - `batch_010_dev` completed Slurm-native postprocess:
@@ -847,3 +867,64 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - keeps one global candidate rule per run across all dev tasks;
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
+
+## 2026-06-21 Research Design Round 005 And Batch 012 Portfolio
+
+- Trigger: `batch_011_dev` completed Slurm-native postprocess with `postprocess_done.json` and no `postprocess_failed.json`.
+- Scoreboard conclusion for `batch_011_dev` under the current claim-track policy:
+  - `r011_inbatch_hybrid_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.00511`, `NFCorpus -0.00648`, `FiQA2018 -0.01287`, `SCIDOCS -0.00064`, min delta `-0.01287`, mean delta `-0.006275`, dev tasks won/lost `0/4`, all success flags false.
+  - `r011_pairwise_rank_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.03389`, `NFCorpus -0.02759`, `FiQA2018 -0.02739`, `SCIDOCS -0.01329`, min delta `-0.03389`, mean delta `-0.02554`, dev tasks won/lost `0/4`, all success flags false.
+- Decision: `main_goal_success=false`. This was a dev batch, and both standalone candidates regressed on all four dev tasks.
+- Local search remains exhausted. Recent standalone evidence has now falsified first-token loop-depth tuning, memory-mode variants, detached-memory training, lower negative count, document-loop evaluation, loop-loss tail weighting, adjacent-loop consistency, candidate-internal self-residual stabilization, in-batch hybrid contrastive loss, and pairwise ranking loss.
+- Real subagents were used for workflow/research gates before new batch validation:
+  - one analyzed `batch_011_dev` results under claim-track policy;
+  - one audited workflow state and confirmed postprocess completion/no queued jobs;
+  - one assessed local-search exhaustion and proposed broader standalone directions.
+- Entered `RESEARCH_DESIGN_MODE` before creating the next batch.
+- Wrote the research plan at `docs/research_design_round_005.md`.
+- Broad standalone directions considered:
+  - seeded positive/negative sampling;
+  - parameter-free pooling alternative;
+  - query/document loop co-training;
+  - hardness curriculum;
+  - sparse loop supervision;
+  - two-stage standard-to-loop training;
+  - label-smoothed listwise ranking.
+- Code/config updates prepared before validation:
+  - Added deterministic `passage_sampling_strategy` support with default `first` and opt-in `seeded_random`.
+  - Added `embedding_pooling_mode` support with default `mean_pool` and opt-in `first_token`.
+  - Added registered versions `loop_matryoshka_first_token_seeded_sampling` and `loop_matryoshka_first_token_first_pool`.
+  - Added `configs/goal_batch_012_seeded_sampling_first_token.yaml`.
+  - Added `configs/goal_batch_012_first_pool_first_token.yaml`.
+  - Created `experiments/batches/batch_012_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r012_seeded_sampling_first_token_t10`: deterministic seeded random positive/negative sampling, full-epoch first-token loopwise training, fixed `loop_idx=10`.
+  - `r012_first_pool_first_token_t10`: first-token retrieval embedding pooling for queries and documents, full-epoch first-token loopwise training, fixed `loop_idx=10`.
+- Portfolio rationale:
+  - tests two distinct mechanisms after objective-local search failure: training data construction and parameter-free embedding extraction;
+  - does not retest neighboring loop depths, memory modes, or the same failed checkpoint;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
+- Estimated GPU budget: 20 GPU hours against the configured 24 GPU-hour limit, with at most 2 concurrent GPU jobs.
+- Checks before submission:
+  - Subagent code/protocol review gate passed after `outputs/goal/state.json` research-design bookkeeping was updated from round 004 to round 005.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_012_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_012_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_012_dev.yaml` passed.
+  - `git diff --check` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first submit attempt failed before job creation because the cluster required site scheduler options.
+  - A sandboxed retry with site scheduler options failed before job creation because Slurm controller socket access is blocked inside the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded with site scheduler options provided only through temporary environment variables.
+  - Train/eval job IDs:
+    - `r012_seeded_sampling_first_token_t10`: train `5130092`, eval `5130093`
+    - `r012_first_pool_first_token_t10`: train `5130094`, eval `5130095`
+  - Postprocess job ID: `5130096`
+  - Postprocess dependency: `afterany:5130093:5130095`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_012_dev/scoreboard.json`.

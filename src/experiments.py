@@ -13,6 +13,8 @@ class VersionSpec:
     color: str
     loop_memory_mode: Optional[str] = None
     loop_query_mode: Optional[str] = None
+    embedding_pooling_mode: Optional[str] = None
+    passage_sampling_strategy: Optional[str] = None
 
     @property
     def is_standard_family(self) -> bool:
@@ -136,6 +138,30 @@ VERSION_SPECS: Dict[str, VersionSpec] = {
         loop_memory_mode="first_token",
         loop_query_mode="initial_embedding",
     ),
+    "loop_matryoshka_first_token_seeded_sampling": VersionSpec(
+        name="loop_matryoshka_first_token_seeded_sampling",
+        family="loop",
+        loss_type="loopwise",
+        description="First-token memory loop retriever trained with seeded random positive and negative passage sampling.",
+        eval_all_loops=True,
+        plot_kind="curve",
+        color="#8dd3c7",
+        loop_memory_mode="first_token",
+        loop_query_mode="initial_embedding",
+        passage_sampling_strategy="seeded_random",
+    ),
+    "loop_matryoshka_first_token_first_pool": VersionSpec(
+        name="loop_matryoshka_first_token_first_pool",
+        family="loop",
+        loss_type="loopwise",
+        description="First-token memory loop retriever using the first query/doc token as the retrieval embedding.",
+        eval_all_loops=True,
+        plot_kind="curve",
+        color="#fb8072",
+        loop_memory_mode="first_token",
+        loop_query_mode="initial_embedding",
+        embedding_pooling_mode="first_token",
+    ),
     "loop_final_recurrent_mean_pool": VersionSpec(
         name="loop_final_recurrent_mean_pool",
         family="loop",
@@ -193,6 +219,8 @@ MAIN_VERSIONS: Sequence[str] = (
     "loop_consistency_first_token",
     "loop_inbatch_hybrid_first_token",
     "loop_pairwise_first_token",
+    "loop_matryoshka_first_token_seeded_sampling",
+    "loop_matryoshka_first_token_first_pool",
     "loop_final_recurrent_mean_pool",
     "loop_matryoshka_recurrent_mean_pool",
     "loop_final_recurrent_no_memory",

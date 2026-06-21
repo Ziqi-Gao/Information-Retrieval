@@ -65,6 +65,8 @@ DEFAULTS: Dict[str, Any] = {
     "use_inbatch": False,
     "loop_memory_mode": "mean_pool",
     "loop_query_mode": "initial_embedding",
+    "embedding_pooling_mode": "mean_pool",
+    "passage_sampling_strategy": "first",
 }
 
 
@@ -103,6 +105,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataloader_num_workers", type=int, default=None)
     parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "none", "token_concat"], default=None)
     parser.add_argument("--loop_query_mode", choices=["initial_embedding", "recurrent_hidden"], default=None)
+    parser.add_argument("--embedding_pooling_mode", choices=["mean_pool", "first_token"], default=None)
+    parser.add_argument("--passage_sampling_strategy", choices=["first", "seeded_random"], default=None)
     return parser
 
 
@@ -126,6 +130,20 @@ def parse_args() -> argparse.Namespace:
                 f"overriding requested value {args.loop_query_mode}."
             )
         args.loop_query_mode = version_spec.loop_query_mode
+    if version_spec.embedding_pooling_mode is not None:
+        if args.embedding_pooling_mode != version_spec.embedding_pooling_mode:
+            print(
+                f"Version {args.version} uses embedding_pooling_mode={version_spec.embedding_pooling_mode}; "
+                f"overriding requested value {args.embedding_pooling_mode}."
+            )
+        args.embedding_pooling_mode = version_spec.embedding_pooling_mode
+    if version_spec.passage_sampling_strategy is not None:
+        if args.passage_sampling_strategy != version_spec.passage_sampling_strategy:
+            print(
+                f"Version {args.version} uses passage_sampling_strategy={version_spec.passage_sampling_strategy}; "
+                f"overriding requested value {args.passage_sampling_strategy}."
+            )
+        args.passage_sampling_strategy = version_spec.passage_sampling_strategy
     if args.bf16 and args.fp16:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
     loss_type = version_spec.loss_type
@@ -305,6 +323,7 @@ def run_sanity_checks(
         f"included={debug.get('memory_tokens_included', False)} "
         f"loop_memory_mode={debug.get('loop_memory_mode', 'mean_pool')} "
         f"loop_query_mode={debug.get('loop_query_mode', 'initial_embedding')} "
+        f"embedding_pooling_mode={debug.get('embedding_pooling_mode', 'mean_pool')} "
         f"query_len={debug.get('query_token_length')} "
         f"last_memory_tokens={debug.get('last_memory_tokens')} "
         f"last_input_len={debug.get('last_input_length')}"
@@ -384,6 +403,7 @@ def main() -> None:
         train_sample_size=args.train_sample_size,
         num_negatives=args.num_negatives,
         seed=args.seed,
+        passage_sampling_strategy=args.passage_sampling_strategy,
     )
     dataloader = DataLoader(
         dataset,
@@ -403,6 +423,7 @@ def main() -> None:
         detach_memory=args.detach_memory,
         loop_memory_mode=args.loop_memory_mode,
         loop_query_mode=args.loop_query_mode,
+        embedding_pooling_mode=args.embedding_pooling_mode,
     ).to(device)
     assert_encoder_only_trainable(model)
 
@@ -423,7 +444,9 @@ def main() -> None:
         "Experiment config: "
         f"loop_impl={args.loop_impl}, use_inbatch={args.use_inbatch}, "
         f"tmax={args.tmax}, detach_memory={args.detach_memory}, "
-        f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}"
+        f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}, "
+        f"embedding_pooling_mode={args.embedding_pooling_mode}, "
+        f"passage_sampling_strategy={args.passage_sampling_strategy}"
     )
     model.train()
     optimizer.zero_grad(set_to_none=True)
