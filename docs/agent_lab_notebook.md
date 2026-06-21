@@ -390,7 +390,7 @@ This notebook records factual preparation steps for the autonomous retrieval goa
 - Parent decision: continue with exactly one dev-only standalone batch using existing checkpoints that were not covered by `batch_004_dev`; do not use final-task results to tune the next candidate.
 - Created `experiments/batches/batch_005_dev.yaml`.
 - Batch purpose: `dev`.
-- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Candidate tracks: two `standalone_main` exploration candidates plus one `diagnostic` candidate. These dev results cannot trigger `main_goal_success`.
 - Dev tasks:
   - `SciFact`
   - `NFCorpus`
@@ -672,6 +672,25 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
 - Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall -q src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_010_dev.yaml` passed with expected dev-only standalone warnings for the two `standalone_main` candidates.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_scoreboard.py --self-test` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_010_dev.yaml` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_010_dev.yaml --dry-run --submit-postprocess` passed and rewrote `outputs/goal/runs/batch_010_dev/dry_run_plan.json` with postprocess enabled.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first sandboxed submit attempt failed before job creation because Slurm controller socket access is blocked in the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded.
+  - Train/eval job IDs:
+    - `r010_tail_weighted_first_token_t10`: train `5076613`, eval `5076614`
+    - `r010_consistency_first_token_t10`: train `5076615`, eval `5076616`
+    - `r010_self_residual_first_token_t7_a50`: eval `5076617`
+  - Postprocess job ID: `5076618`
+  - Postprocess dependency: `afterany:5076614:5076616:5076617`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_010_dev/scoreboard.json`.
+- Checks before submission:
   - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
   - `bash -n scripts/*.sh scripts/*.sbatch` passed.
   - `git diff --check` passed.
@@ -731,3 +750,56 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5043319`
   - Postprocess dependency: `afterany:5043318`
 - Next action: wait for the repair postprocess, then inspect `outputs/goal/runs/batch_009_dev_repair/scoreboard.json`.
+
+## 2026-06-21 Batch 009 Dev Repair Result
+
+- `batch_009_dev_repair` completed Slurm-native postprocess:
+  - eval job: `5043318`
+  - postprocess job: `5043319`
+  - marker: `outputs/goal/runs/batch_009_dev_repair/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_009_dev_repair/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local `goal_status.py --batch-id batch_009_dev_repair --update-state` refresh hung in Slurm status querying and was terminated. The postprocess marker and scoreboard are the terminal evidence.
+- Batch purpose: `dev`; the candidate is `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r009_docloop_first_token_t7_repair__loop7`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.01126`, dev mean delta `-0.001125`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00419`, `NFCorpus +0.00359`, `FiQA2018 -0.01126`, `SCIDOCS -0.00102`; `ArguAna`, `Touche2020`, and `TRECCOVID` were not evaluated by design.
+- Decision: `main_goal_success=false`. The repaired document-loop candidate exactly matched the earlier `batch_006_dev` first-token loop-7 dev pattern, so document-side looping did not recover the recurring `FiQA2018` and `SCIDOCS` regressions.
+- Local search remains exhausted. Recent standalone dev evidence has now falsified local loop-depth tuning, token-concat memory, capped final-only/detached/short-horizon variants, full-epoch detached memory, lower hard-negative count, and document-loop symmetry.
+
+## 2026-06-21 Research Design Round 003 And Batch 010 Portfolio
+
+- Entered `RESEARCH_DESIGN_MODE` again before creating a new batch.
+- Real subagents were used for parallel read-only analysis:
+  - one analyzed `batch_009_dev_repair` and recent standalone dev failure patterns;
+  - one inspected code for broader standalone directions;
+  - one checked manifest/state constraints and validation requirements.
+- Wrote the research plan at `docs/research_design_round_003.md`.
+- Broad standalone directions considered:
+  - loop-loss tail weighting;
+  - candidate-internal loop consistency;
+  - candidate self-residual query stabilization;
+  - true in-batch negatives;
+  - loop-depth dropout during training;
+  - random positive/negative sampling;
+  - pairwise ranking loss.
+- Code/config updates:
+  - Added registered versions `loop_tail_weighted_first_token` and `loop_consistency_first_token`.
+  - Added loop-loss tail weighting and adjacent-loop consistency loss paths.
+  - Added evaluation-only `self_query_alpha` and `self_query_source_loop` support for candidate-internal query residual scoring.
+  - Added `configs/goal_batch_010_tail_weighted_first_token.yaml`.
+  - Added `configs/goal_batch_010_consistency_first_token.yaml`.
+  - Created `experiments/batches/batch_010_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r010_tail_weighted_first_token_t10`: full-epoch first-token training with deeper loop losses weighted by `loop_loss_gamma=1.25`, fixed `loop_idx=10`.
+  - `r010_consistency_first_token_t10`: full-epoch first-token training with adjacent-loop consistency penalty `loop_consistency_lambda=0.05`, fixed `loop_idx=10`.
+  - `r010_self_residual_first_token_t7_a50`: diagnostic eval-only candidate self-residual query scoring from the `batch_006_dev` first-token checkpoint, fixed `loop_idx=7`, `self_query_source_loop=1`, `self_query_alpha=0.50`.
+- Portfolio rationale:
+  - tests loopwise supervision weighting, explicit loop-drift regularization, and diagnostic candidate-internal query stabilization;
+  - does not retest neighboring loop depths of the same checkpoint;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
+- Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.

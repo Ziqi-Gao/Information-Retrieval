@@ -54,6 +54,12 @@ fi
 if [ -n "${SAVE_STEPS:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--save_steps "${SAVE_STEPS}")
 fi
+if [ -n "${LOOP_LOSS_GAMMA:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--loop_loss_gamma "${LOOP_LOSS_GAMMA}")
+fi
+if [ -n "${LOOP_CONSISTENCY_LAMBDA:-}" ]; then
+  TRAIN_EXTRA_ARGS+=(--loop_consistency_lambda "${LOOP_CONSISTENCY_LAMBDA}")
+fi
 if [ -n "${LOOP_MEMORY_MODE:-}" ]; then
   TRAIN_EXTRA_ARGS+=(--loop_memory_mode "${LOOP_MEMORY_MODE}")
 fi

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
+import torch.nn.functional as F
 
 from .experiments import get_version_spec, version_names
 from .model import load_model
@@ -120,6 +121,8 @@ class LoopRetrieverMTEBWrapper:
         batch_size: int,
         loop_docs: bool = False,
         doc_loop_idx: Optional[int] = None,
+        self_query_alpha: Optional[float] = None,
+        self_query_source_loop: int = 1,
     ) -> None:
         self.model = model
         self.loop_idx = loop_idx
@@ -127,22 +130,42 @@ class LoopRetrieverMTEBWrapper:
         self.batch_size = batch_size
         self.loop_docs = bool(loop_docs)
         self.doc_loop_idx = int(doc_loop_idx) if doc_loop_idx is not None else int(loop_idx)
+        self.self_query_alpha = None if self_query_alpha is None else float(self_query_alpha)
+        self.self_query_source_loop = int(self_query_source_loop)
 
     def encode_queries(self, queries, batch_size: int = 32, **kwargs):
         del kwargs
+        queries = list(queries)
         with torch.no_grad():
-            return (
-                self.model.encode_queries(
-                    list(queries),
+            if self.self_query_alpha is None:
+                query_emb = self.model.encode_queries(
+                    queries,
                     batch_size=batch_size or self.batch_size,
                     loop_idx=self.loop_idx,
                     return_all_loops=False,
                     device=self.device,
                 )
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            else:
+                source_emb = self.model.encode_queries(
+                    queries,
+                    batch_size=batch_size or self.batch_size,
+                    loop_idx=self.self_query_source_loop,
+                    return_all_loops=False,
+                    device=self.device,
+                )
+                target_emb = self.model.encode_queries(
+                    queries,
+                    batch_size=batch_size or self.batch_size,
+                    loop_idx=self.loop_idx,
+                    return_all_loops=False,
+                    device=self.device,
+                )
+                query_emb = F.normalize(
+                    source_emb * (1.0 - self.self_query_alpha) + target_emb * self.self_query_alpha,
+                    p=2,
+                    dim=-1,
+                )
+            return query_emb.detach().cpu().numpy()
 
     def encode_corpus(self, corpus, batch_size: int = 32, **kwargs):
         del kwargs
@@ -181,6 +204,11 @@ def weighted_concat(left: torch.Tensor, right: torch.Tensor, alpha: float) -> to
     left_weight = math.sqrt(1.0 - float(alpha))
     right_weight = math.sqrt(float(alpha))
     return torch.cat([left * left_weight, right * right_weight], dim=-1)
+
+
+def self_query_artifact_dir_name(source_loop: int, alpha: float) -> str:
+    alpha_text = str(float(alpha)).replace(".", "p")
+    return "self_query_s{}_a{}".format(int(source_loop), alpha_text)
 
 
 class StandardLoopFusionMTEBWrapper:
@@ -261,6 +289,8 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
         "fusion_standard_checkpoint_dir",
         "fusion_alpha",
         "fusion_scope",
+        "self_query_alpha",
+        "self_query_source_loop",
     ]
     acquire_file_lock(lock_path)
     try:
@@ -280,6 +310,8 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
                 row.get("fusion_standard_checkpoint_dir", ""),
                 str(row.get("fusion_alpha", "")),
                 row.get("fusion_scope", ""),
+                str(row.get("self_query_alpha", "")),
+                str(row.get("self_query_source_loop", "")),
             )
             deduped[key] = row
 
@@ -312,6 +344,8 @@ def evaluate_one_loop(
     artifact_dir = ensure_dir(output_dir / args.version / safe_task_dir_name(task_name))
     if args.loop_docs:
         artifact_dir = ensure_dir(artifact_dir / f"doc_loop{args.doc_loop_idx or loop_idx}")
+    if args.self_query_alpha is not None:
+        artifact_dir = ensure_dir(artifact_dir / self_query_artifact_dir_name(args.self_query_source_loop, args.self_query_alpha))
     if standard_model is not None:
         artifact_dir = ensure_dir(artifact_dir / fusion_artifact_dir_name(args.fusion_scope, args.fusion_alpha))
     if standard_model is not None:
@@ -332,6 +366,8 @@ def evaluate_one_loop(
             batch_size=args.batch_size,
             loop_docs=args.loop_docs,
             doc_loop_idx=args.doc_loop_idx,
+            self_query_alpha=args.self_query_alpha,
+            self_query_source_loop=args.self_query_source_loop,
         )
     tasks = mteb.get_tasks(tasks=[task_name])
     assert_retrieval_tasks(tasks, task_name)
@@ -362,6 +398,8 @@ def evaluate_one_loop(
         "fusion_standard_checkpoint_dir": args.fusion_standard_checkpoint_dir or "",
         "fusion_alpha": "" if args.fusion_alpha is None else args.fusion_alpha,
         "fusion_scope": args.fusion_scope if args.fusion_standard_checkpoint_dir else "",
+        "self_query_alpha": "" if args.self_query_alpha is None else args.self_query_alpha,
+        "self_query_source_loop": "" if args.self_query_alpha is None else args.self_query_source_loop,
     }
 
 
@@ -379,6 +417,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--loop_idx", type=int, default=None)
     parser.add_argument("--loop_docs", type=str2bool, default=False)
     parser.add_argument("--doc_loop_idx", type=int, default=None)
+    parser.add_argument("--self_query_alpha", type=float, default=None)
+    parser.add_argument("--self_query_source_loop", type=int, default=1)
     parser.add_argument("--eval_all_loops", type=str2bool, default=False)
     parser.add_argument(
         "--fusion_standard_checkpoint_dir",
@@ -413,6 +453,8 @@ def main() -> None:
 
     if bool(args.fusion_standard_checkpoint_dir) != (args.fusion_alpha is not None):
         raise ValueError("--fusion_standard_checkpoint_dir and --fusion_alpha must be provided together.")
+    if args.fusion_standard_checkpoint_dir and args.self_query_alpha is not None:
+        raise ValueError("--self_query_alpha cannot be combined with frozen-standard fusion.")
     if not args.fusion_standard_checkpoint_dir and args.fusion_scope != "both":
         raise ValueError("--fusion_scope may only be set when fusion is enabled.")
     if args.fusion_alpha is not None and not 0.0 <= float(args.fusion_alpha) <= 1.0:
@@ -421,6 +463,10 @@ def main() -> None:
         raise ValueError("--doc_loop_idx must be a positive integer.")
     if args.doc_loop_idx is not None and not args.loop_docs:
         raise ValueError("--doc_loop_idx may only be set when --loop_docs true.")
+    if args.self_query_alpha is not None and not 0.0 <= float(args.self_query_alpha) <= 1.0:
+        raise ValueError("--self_query_alpha must be in [0, 1].")
+    if args.self_query_source_loop <= 0:
+        raise ValueError("--self_query_source_loop must be a positive integer.")
 
     model = load_model(args.checkpoint_dir, map_location="cpu").to(requested_device)
     model.eval()

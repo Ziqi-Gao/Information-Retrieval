@@ -414,6 +414,18 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
             _add(errors, "experiment {} eval.doc_loop_idx must be a positive integer".format(run_id or idx))
         if doc_loop_idx is not None and not loop_docs:
             _add(errors, "experiment {} eval.doc_loop_idx requires eval.loop_docs: true".format(run_id or idx))
+        self_query_alpha_value = eval_config.get("self_query_alpha")
+        if self_query_alpha_value is not None:
+            self_query_alpha = metric_float(self_query_alpha_value)
+            if self_query_alpha is None or self_query_alpha < 0.0 or self_query_alpha > 1.0:
+                _add(errors, "experiment {} eval.self_query_alpha must be a number in [0, 1]".format(run_id or idx))
+            if candidate_track == "standalone_main":
+                _add(errors, "experiment {} eval.self_query_alpha is diagnostic only and cannot be standalone_main".format(run_id or idx))
+        self_query_source_loop = eval_config.get("self_query_source_loop")
+        if self_query_source_loop is not None and (
+            not isinstance(self_query_source_loop, int) or self_query_source_loop <= 0
+        ):
+            _add(errors, "experiment {} eval.self_query_source_loop must be a positive integer".format(run_id or idx))
         loop_config: Optional[Dict[str, Any]] = None
         if eval_only:
             loop_config = _validate_checkpoint_dir(
@@ -422,8 +434,21 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
                 eval_config.get("checkpoint_dir"),
                 loop_idx=loop_idx,
             )
+        if loop_config and self_query_source_loop is not None:
+            tmax = loop_config.get("tmax")
+            if not isinstance(tmax, int) or int(self_query_source_loop) > tmax:
+                _add(
+                    errors,
+                    "experiment {} eval.self_query_source_loop {} exceeds checkpoint tmax {}".format(
+                        run_id or idx,
+                        self_query_source_loop,
+                        tmax,
+                    ),
+                )
         fusion_checkpoint = eval_config.get("fusion_standard_checkpoint_dir")
         fusion_alpha_value = eval_config.get("fusion_alpha")
+        if fusion_checkpoint and self_query_alpha_value is not None:
+            _add(errors, "experiment {} cannot combine eval.self_query_alpha with frozen-standard fusion".format(run_id or idx))
         if bool(fusion_checkpoint) != (fusion_alpha_value is not None):
             _add(errors, "experiment {} fusion_standard_checkpoint_dir and fusion_alpha must be provided together".format(run_id or idx))
         fusion_scope = eval_config.get("fusion_scope", "both")

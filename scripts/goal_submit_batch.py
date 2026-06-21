@@ -286,7 +286,13 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             train_exports["LOOP_MEMORY_MODE"] = experiment.get("loop_memory_mode")
         if experiment.get("loop_query_mode") is not None:
             train_exports["LOOP_QUERY_MODE"] = experiment.get("loop_query_mode")
-        for manifest_key, export_key in [("epochs", "EPOCHS"), ("max_steps", "MAX_STEPS"), ("save_steps", "SAVE_STEPS")]:
+        for manifest_key, export_key in [
+            ("epochs", "EPOCHS"),
+            ("max_steps", "MAX_STEPS"),
+            ("save_steps", "SAVE_STEPS"),
+            ("loop_loss_gamma", "LOOP_LOSS_GAMMA"),
+            ("loop_consistency_lambda", "LOOP_CONSISTENCY_LAMBDA"),
+        ]:
             if train_settings.get(manifest_key) is not None:
                 train_exports[export_key] = train_settings.get(manifest_key)
 
@@ -318,6 +324,10 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             eval_exports["LOOP_DOCS"] = bool_text(require_bool(eval_settings.get("loop_docs"), "experiment {} eval.loop_docs".format(run_id), default=False))
         if eval_settings.get("doc_loop_idx") is not None:
             eval_exports["DOC_LOOP_IDX"] = eval_settings.get("doc_loop_idx")
+        if eval_settings.get("self_query_alpha") is not None:
+            eval_exports["SELF_QUERY_ALPHA"] = eval_settings.get("self_query_alpha")
+        if eval_settings.get("self_query_source_loop") is not None:
+            eval_exports["SELF_QUERY_SOURCE_LOOP"] = eval_settings.get("self_query_source_loop")
         if eval_settings.get("fusion_standard_checkpoint_dir") is not None:
             eval_exports["FUSION_STANDARD_CHECKPOINT_DIR"] = eval_settings.get("fusion_standard_checkpoint_dir")
         if eval_settings.get("fusion_alpha") is not None:
