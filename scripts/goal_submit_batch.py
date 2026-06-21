@@ -314,6 +314,10 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         eval_command_base = ["sbatch", "--parsable"] + scheduler_args
         if eval_settings.get("loop_idx") is not None:
             eval_exports["LOOP_IDX"] = eval_settings.get("loop_idx")
+        if eval_settings.get("loop_docs") is not None:
+            eval_exports["LOOP_DOCS"] = bool_text(require_bool(eval_settings.get("loop_docs"), "experiment {} eval.loop_docs".format(run_id), default=False))
+        if eval_settings.get("doc_loop_idx") is not None:
+            eval_exports["DOC_LOOP_IDX"] = eval_settings.get("doc_loop_idx")
         if eval_settings.get("fusion_standard_checkpoint_dir") is not None:
             eval_exports["FUSION_STANDARD_CHECKPOINT_DIR"] = eval_settings.get("fusion_standard_checkpoint_dir")
         if eval_settings.get("fusion_alpha") is not None:

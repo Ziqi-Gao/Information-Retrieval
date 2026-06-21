@@ -1,0 +1,129 @@
+batch_id: batch_009_dev
+description: "Dev-only standalone portfolio for document-loop symmetry, full-budget detached memory, and lower hard-negative pressure."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 3
+  max_gpu_hours_estimate: 24
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r009_docloop_first_token_t7
+    claim_track: standalone_main
+    hypothesis: "Looping documents with the same first-token candidate checkpoint may reduce query/document representation mismatch from query-only looping."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint with fixed query loop_idx=7 and fixed document loop_idx=7."
+    expected_effect: "Tests whether document-side loop symmetry can recover dev-task regressions without frozen-baseline scoring input or new trainable parameters."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use query loop_idx=7 and document loop_idx=7 from the batch_006 first-token checkpoint for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Looping documents may amplify document noise and reduce ranking quality."
+      - "The checkpoint was trained with non-looped documents, so document-side looping may create a new mismatch."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 7
+      loop_docs: true
+      doc_loop_idx: 7
+      candidate_loop_indices:
+        - 7
+    risk:
+      level: medium
+      reason: "Evaluation-only standalone scoring change using the candidate checkpoint on both query and document sides; no metric, baseline, task set, or threshold change."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r009_detached_first_token_full_t10
+    claim_track: standalone_main
+    hypothesis: "Detached first-token memory may need a full training epoch before its recurrent-stability effect is visible on dev tasks."
+    mechanism: "Train first-token loopwise retrieval with detached memory for one full epoch, then evaluate a fixed final loop globally on dev tasks."
+    expected_effect: "Tests whether the broad negative batch_008 detached-memory result was caused by capped training rather than the mechanism."
+    version: loop_matryoshka_first_token
+    config: configs/goal_batch_009_detached_first_token_full.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token with detach_memory=true for one full epoch and evaluate loop_idx=10 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Detached memory may still remove useful recurrence credit assignment."
+      - "Full-budget training may preserve the same FiQA2018 and SCIDOCS regressions."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Config-only full-epoch training of an existing standalone memory mode with no new scoring input."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r009_first_token_neg3_t10
+    claim_track: standalone_main
+    hypothesis: "Lower hard-negative pressure may reduce first-token loop overfitting and improve transfer on FiQA2018 and SCIDOCS."
+    mechanism: "Train first-token loopwise retrieval with three hard negatives for one full epoch, then evaluate a fixed final loop globally on dev tasks."
+    expected_effect: "Tests whether the seven-negative RLHN objective is too sharp for standalone loop transfer."
+    version: loop_matryoshka_first_token
+    config: configs/goal_batch_009_first_token_neg3.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token with num_negatives=3 for one full epoch and evaluate loop_idx=10 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Fewer hard negatives may weaken retrieval training across all dev tasks."
+      - "The first-token mechanism may still regress on broader retrieval tasks even with reduced negative pressure."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Config-only change to hard-negative count under the existing standalone loopwise objective."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

@@ -112,11 +112,21 @@ def fusion_artifact_dir_name(scope: str, alpha: float) -> str:
 
 
 class LoopRetrieverMTEBWrapper:
-    def __init__(self, model, loop_idx: int, device: torch.device, batch_size: int) -> None:
+    def __init__(
+        self,
+        model,
+        loop_idx: int,
+        device: torch.device,
+        batch_size: int,
+        loop_docs: bool = False,
+        doc_loop_idx: Optional[int] = None,
+    ) -> None:
         self.model = model
         self.loop_idx = loop_idx
         self.device = device
         self.batch_size = batch_size
+        self.loop_docs = bool(loop_docs)
+        self.doc_loop_idx = int(doc_loop_idx) if doc_loop_idx is not None else int(loop_idx)
 
     def encode_queries(self, queries, batch_size: int = 32, **kwargs):
         del kwargs
@@ -138,6 +148,18 @@ class LoopRetrieverMTEBWrapper:
         del kwargs
         texts = corpus_to_texts(corpus)
         with torch.no_grad():
+            if self.loop_docs:
+                return (
+                    self.model.encode_docs_looped(
+                        texts,
+                        batch_size=batch_size or self.batch_size,
+                        loop_idx=self.doc_loop_idx,
+                        device=self.device,
+                    )
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
             return (
                 self.model.encode_docs(
                     texts,
@@ -288,6 +310,8 @@ def evaluate_one_loop(
 
     output_dir = ensure_dir(args.output_dir)
     artifact_dir = ensure_dir(output_dir / args.version / safe_task_dir_name(task_name))
+    if args.loop_docs:
+        artifact_dir = ensure_dir(artifact_dir / f"doc_loop{args.doc_loop_idx or loop_idx}")
     if standard_model is not None:
         artifact_dir = ensure_dir(artifact_dir / fusion_artifact_dir_name(args.fusion_scope, args.fusion_alpha))
     if standard_model is not None:
@@ -301,7 +325,14 @@ def evaluate_one_loop(
             batch_size=args.batch_size,
         )
     else:
-        wrapper = LoopRetrieverMTEBWrapper(model, loop_idx=loop_idx, device=device, batch_size=args.batch_size)
+        wrapper = LoopRetrieverMTEBWrapper(
+            model,
+            loop_idx=loop_idx,
+            device=device,
+            batch_size=args.batch_size,
+            loop_docs=args.loop_docs,
+            doc_loop_idx=args.doc_loop_idx,
+        )
     tasks = mteb.get_tasks(tasks=[task_name])
     assert_retrieval_tasks(tasks, task_name)
     evaluator = mteb.MTEB(tasks=tasks)
@@ -346,6 +377,8 @@ def parse_args() -> argparse.Namespace:
         help="One or more MTEB retrieval tasks. Accepts repeated values or comma-separated lists.",
     )
     parser.add_argument("--loop_idx", type=int, default=None)
+    parser.add_argument("--loop_docs", type=str2bool, default=False)
+    parser.add_argument("--doc_loop_idx", type=int, default=None)
     parser.add_argument("--eval_all_loops", type=str2bool, default=False)
     parser.add_argument(
         "--fusion_standard_checkpoint_dir",
@@ -384,6 +417,10 @@ def main() -> None:
         raise ValueError("--fusion_scope may only be set when fusion is enabled.")
     if args.fusion_alpha is not None and not 0.0 <= float(args.fusion_alpha) <= 1.0:
         raise ValueError("--fusion_alpha must be in [0, 1].")
+    if args.doc_loop_idx is not None and args.doc_loop_idx <= 0:
+        raise ValueError("--doc_loop_idx must be a positive integer.")
+    if args.doc_loop_idx is not None and not args.loop_docs:
+        raise ValueError("--doc_loop_idx may only be set when --loop_docs true.")
 
     model = load_model(args.checkpoint_dir, map_location="cpu").to(requested_device)
     model.eval()

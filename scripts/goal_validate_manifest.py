@@ -406,6 +406,14 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         if loop_idx is not None and (not isinstance(loop_idx, int) or loop_idx <= 0):
             _add(errors, "experiment {} eval.loop_idx must be a positive integer".format(run_id or idx))
             loop_idx = None
+        loop_docs = False
+        if "loop_docs" in eval_config:
+            loop_docs = _validate_bool_field(errors, eval_config.get("loop_docs"), "experiment {} eval.loop_docs".format(run_id or idx), default=False)
+        doc_loop_idx = eval_config.get("doc_loop_idx")
+        if doc_loop_idx is not None and (not isinstance(doc_loop_idx, int) or doc_loop_idx <= 0):
+            _add(errors, "experiment {} eval.doc_loop_idx must be a positive integer".format(run_id or idx))
+        if doc_loop_idx is not None and not loop_docs:
+            _add(errors, "experiment {} eval.doc_loop_idx requires eval.loop_docs: true".format(run_id or idx))
         loop_config: Optional[Dict[str, Any]] = None
         if eval_only:
             loop_config = _validate_checkpoint_dir(

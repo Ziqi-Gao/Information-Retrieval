@@ -35,6 +35,8 @@ CHECKPOINT_DIR=${CHECKPOINT_DIR:-outputs/preexp/standard/final}
 OUTPUT_DIR=${OUTPUT_DIR:-outputs/preexp_eval}
 EVAL_ALL_LOOPS=${EVAL_ALL_LOOPS:-true}
 LOOP_IDX=${LOOP_IDX:-}
+LOOP_DOCS=${LOOP_DOCS:-false}
+DOC_LOOP_IDX=${DOC_LOOP_IDX:-}
 FUSION_STANDARD_CHECKPOINT_DIR=${FUSION_STANDARD_CHECKPOINT_DIR:-}
 FUSION_ALPHA=${FUSION_ALPHA:-}
 FUSION_SCOPE=${FUSION_SCOPE:-}
@@ -54,6 +56,12 @@ echo "Evaluation tasks: ${TASK_NAMES}"
 EVAL_EXTRA_ARGS=()
 if [ -n "${LOOP_IDX}" ]; then
   EVAL_EXTRA_ARGS+=(--loop_idx "${LOOP_IDX}")
+fi
+if [ -n "${LOOP_DOCS}" ]; then
+  EVAL_EXTRA_ARGS+=(--loop_docs "${LOOP_DOCS}")
+fi
+if [ -n "${DOC_LOOP_IDX}" ]; then
+  EVAL_EXTRA_ARGS+=(--doc_loop_idx "${DOC_LOOP_IDX}")
 fi
 if [ -n "${FUSION_STANDARD_CHECKPOINT_DIR}" ]; then
   EVAL_EXTRA_ARGS+=(--fusion_standard_checkpoint_dir "${FUSION_STANDARD_CHECKPOINT_DIR}")

@@ -74,11 +74,13 @@ flowchart TD
     StdLoss --> Eval
 ```
 
-Pooling excludes memory tokens. Documents are encoded once and do not loop:
+Pooling excludes memory tokens. By default, documents are encoded once and do not loop:
 
 ```text
 doc_embedding = normalize(mean_pool(ModernBERT(doc tokens)))
 ```
+
+Some autonomous dev manifests may explicitly test document-side loop symmetry as a predeclared candidate scoring rule. That path is opt-in through the goal-batch manifest and keeps the default training and evaluation behavior unchanged.
 
 The loop memory construction is parameter-free and selected by `loop_memory_mode`:
 
