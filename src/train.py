@@ -2,7 +2,7 @@ import argparse
 import math
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 from torch.utils.data import DataLoader
@@ -55,6 +55,7 @@ DEFAULTS: Dict[str, Any] = {
     "pairwise_margin": 0.0,
     "loop_loss_gamma": 1.25,
     "loop_consistency_lambda": 0.05,
+    "two_stage_warmup_ratio": 0.25,
     "bf16": False,
     "fp16": False,
     "seed": 42,
@@ -95,6 +96,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pairwise_margin", type=float, default=None)
     parser.add_argument("--loop_loss_gamma", type=float, default=None)
     parser.add_argument("--loop_consistency_lambda", type=float, default=None)
+    parser.add_argument("--two_stage_warmup_ratio", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
     add_bool_arg(parser, "use_inbatch", "Enable in-batch loss for versions that explicitly support it.")
@@ -106,7 +108,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "none", "token_concat"], default=None)
     parser.add_argument("--loop_query_mode", choices=["initial_embedding", "recurrent_hidden"], default=None)
     parser.add_argument("--embedding_pooling_mode", choices=["mean_pool", "first_token"], default=None)
-    parser.add_argument("--passage_sampling_strategy", choices=["first", "seeded_random"], default=None)
+    parser.add_argument("--passage_sampling_strategy", choices=["first", "middle_negatives", "seeded_random"], default=None)
     return parser
 
 
@@ -146,6 +148,8 @@ def parse_args() -> argparse.Namespace:
         args.passage_sampling_strategy = version_spec.passage_sampling_strategy
     if args.bf16 and args.fp16:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
+    if args.two_stage_warmup_ratio < 0.0 or args.two_stage_warmup_ratio >= 1.0:
+        raise ValueError("two_stage_warmup_ratio must be in [0, 1).")
     loss_type = version_spec.loss_type
     if loss_type == "loopwise_inbatch_hybrid":
         if not args.use_inbatch:
@@ -190,6 +194,8 @@ def select_loss(
     if loss_type == "final_loop":
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise":
+        return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "two_stage_loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise_inbatch_hybrid":
         return loopwise_loss(
@@ -239,6 +245,14 @@ def encode_training_batch(
     if not get_version_spec(version).is_standard_family:
         return model.forward_batch(batch["queries"], batch["positives"], batch["negatives"])
 
+    return encode_standard_training_batch(model, batch)
+
+
+def encode_standard_training_batch(
+    model: LoopMatryoshkaRetriever,
+    batch: Dict[str, Any],
+) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+
     queries = batch["queries"]
     positives = batch["positives"]
     negatives = batch["negatives"]
@@ -265,10 +279,17 @@ def run_sanity_checks(
     neg_emb: torch.Tensor,
     loss_dict: Dict[str, torch.Tensor],
     args: argparse.Namespace,
+    loss_type_override: Optional[str] = None,
+    expected_loops_override: Optional[int] = None,
 ) -> None:
     batch_size = len(batch["queries"])
     num_negatives = len(batch["negatives"][0])
-    expected_loops = 1 if get_version_spec(args.version).is_standard_family else int(args.tmax)
+    loss_type = loss_type_override or get_version_spec(args.version).loss_type
+    expected_loops = (
+        int(expected_loops_override)
+        if expected_loops_override is not None
+        else 1 if get_version_spec(args.version).is_standard_family else int(args.tmax)
+    )
     if len(q_loops) != expected_loops:
         raise AssertionError(f"Expected {expected_loops} query loop tensors, got {len(q_loops)}.")
     for idx, q_emb in enumerate(q_loops, start=1):
@@ -280,7 +301,6 @@ def run_sanity_checks(
     if tuple(neg_emb.shape) != (batch_size, num_negatives, model.embedding_dim):
         raise AssertionError(f"neg_emb shape mismatch: got {tuple(neg_emb.shape)}.")
 
-    loss_type = get_version_spec(args.version).loss_type
     loss_inbatch = loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))
     if loss_type != "loopwise_inbatch_hybrid":
         if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
@@ -352,7 +372,16 @@ def log_row(
     if torch.cuda.is_available():
         row["gpu_memory_allocated_gb"] = torch.cuda.memory_allocated() / 1e9
     loss_type = get_version_spec(args.version).loss_type
-    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_tail_weighted", "loopwise_consistency"}:
+    if "_training_stage" in loss_dict:
+        row["training_stage"] = str(loss_dict["_training_stage"])
+    if loss_type in {
+        "loopwise",
+        "two_stage_loopwise",
+        "loopwise_inbatch_hybrid",
+        "loopwise_pairwise",
+        "loopwise_tail_weighted",
+        "loopwise_consistency",
+    }:
         for idx in range(1, args.tmax + 1):
             key = f"loss_t{idx}"
             if key in loss_dict:
@@ -432,6 +461,10 @@ def main() -> None:
     total_steps = int(args.epochs) * updates_per_epoch
     if args.max_steps is not None:
         total_steps = min(total_steps, int(args.max_steps))
+    loss_type = get_version_spec(args.version).loss_type
+    two_stage_warmup_steps = 0
+    if loss_type == "two_stage_loopwise":
+        two_stage_warmup_steps = min(total_steps - 1, int(total_steps * float(args.two_stage_warmup_ratio)))
     warmup_steps = int(total_steps * float(args.warmup_ratio))
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
@@ -446,13 +479,14 @@ def main() -> None:
         f"tmax={args.tmax}, detach_memory={args.detach_memory}, "
         f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}, "
         f"embedding_pooling_mode={args.embedding_pooling_mode}, "
-        f"passage_sampling_strategy={args.passage_sampling_strategy}"
+        f"passage_sampling_strategy={args.passage_sampling_strategy}, "
+        f"two_stage_warmup_steps={two_stage_warmup_steps}"
     )
     model.train()
     optimizer.zero_grad(set_to_none=True)
     global_step = 0
     should_stop = False
-    sanity_checked = False
+    sanity_checked_stages: set[str] = set()
 
     for epoch in range(int(args.epochs)):
         progress = tqdm(dataloader, desc=f"epoch {epoch + 1}/{args.epochs}", dynamic_ncols=True)
@@ -462,11 +496,33 @@ def main() -> None:
                 dtype=autocast_dtype,
                 enabled=autocast_enabled,
             ):
-                q_loops, pos_emb, neg_emb = encode_training_batch(model, batch, args.version)
-                loss_dict = select_loss(args.version, q_loops, pos_emb, neg_emb, args)
-                if not sanity_checked:
-                    run_sanity_checks(model, batch, q_loops, pos_emb, neg_emb, loss_dict, args)
-                    sanity_checked = True
+                in_two_stage_warmup = loss_type == "two_stage_loopwise" and global_step < two_stage_warmup_steps
+                if in_two_stage_warmup:
+                    q_loops, pos_emb, neg_emb = encode_standard_training_batch(model, batch)
+                    loss_dict = standard_loss(q_loops[0], pos_emb, neg_emb, tau=args.tau, use_inbatch=False)
+                    loss_dict["_training_stage"] = "standard_warmup"
+                    sanity_loss_type = "standard"
+                    sanity_expected_loops = 1
+                else:
+                    q_loops, pos_emb, neg_emb = encode_training_batch(model, batch, args.version)
+                    loss_dict = select_loss(args.version, q_loops, pos_emb, neg_emb, args)
+                    loss_dict["_training_stage"] = "loopwise" if loss_type == "two_stage_loopwise" else "main"
+                    sanity_loss_type = "loopwise" if loss_type == "two_stage_loopwise" else None
+                    sanity_expected_loops = int(args.tmax) if loss_type == "two_stage_loopwise" else None
+                stage_key = str(loss_dict.get("_training_stage", "main"))
+                if stage_key not in sanity_checked_stages:
+                    run_sanity_checks(
+                        model,
+                        batch,
+                        q_loops,
+                        pos_emb,
+                        neg_emb,
+                        loss_dict,
+                        args,
+                        loss_type_override=sanity_loss_type,
+                        expected_loops_override=sanity_expected_loops,
+                    )
+                    sanity_checked_stages.add(stage_key)
                 loss = loss_dict["loss"] / int(args.gradient_accumulation_steps)
 
             if scaler.is_enabled():

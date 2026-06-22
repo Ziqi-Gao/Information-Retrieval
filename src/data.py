@@ -42,7 +42,7 @@ def passage_to_text(passage: Any, field_name: str = "passage") -> str:
     )
 
 
-PASSAGE_SAMPLING_STRATEGIES = {"first", "seeded_random"}
+PASSAGE_SAMPLING_STRATEGIES = {"first", "middle_negatives", "seeded_random"}
 
 
 def _positive_passages(item: Dict[str, Any]) -> Sequence[Any]:
@@ -69,6 +69,15 @@ def _first_k_negatives(item: Dict[str, Any], k: int) -> Optional[List[str]]:
     if len(negatives) < k:
         return None
     return [passage_to_text(negative, field_name=f"negative_passages[{idx}]") for idx, negative in enumerate(negatives[:k])]
+
+
+def _middle_k_negatives(item: Dict[str, Any], k: int) -> Optional[List[str]]:
+    negatives = _negative_passages(item)
+    if len(negatives) < k:
+        return None
+    start = max(0, (len(negatives) - k) // 2)
+    selected = list(range(start, start + k))
+    return [passage_to_text(negatives[idx], field_name=f"negative_passages[{idx}]") for idx in selected]
 
 
 def _sampled_positive_and_negatives(item: Dict[str, Any], k: int, seed: int, idx: int) -> Optional[tuple[str, List[str]]]:
@@ -128,6 +137,9 @@ class RLHNRetrievalDataset(torch.utils.data.Dataset):
                         positive = ""
                     else:
                         positive, negatives = sampled
+                elif self.passage_sampling_strategy == "middle_negatives":
+                    positive = _first_positive(item)
+                    negatives = _middle_k_negatives(item, num_negatives)
                 else:
                     positive = _first_positive(item)
                     negatives = _first_k_negatives(item, num_negatives)

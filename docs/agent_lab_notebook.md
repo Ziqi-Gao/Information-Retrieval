@@ -928,3 +928,83 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5130096`
   - Postprocess dependency: `afterany:5130093:5130095`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_012_dev/scoreboard.json`.
+
+## 2026-06-21 Batch 012 Dev Standalone Result
+
+- `batch_012_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
+    - `r012_seeded_sampling_first_token_t10`: train `5130092`, eval `5130093`
+    - `r012_first_pool_first_token_t10`: train `5130094`, eval `5130095`
+  - postprocess job: `5130096`
+  - marker: `outputs/goal/runs/batch_012_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_012_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- Batch purpose: `dev`; both candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r012_seeded_sampling_first_token_t10__loop10`: track `standalone_main`, `minimal_positive_signal=false`, `fusion_diagnostic_pass=false`, `research_grade_threshold_pass=false`, `main_goal_success=false`, `publishable_score_candidate=false`, dev min delta `-0.01053`, dev mean delta `-0.00197`, dev tasks won/lost `2/2`.
+    - Dev deltas: `SciFact +0.00572`, `NFCorpus -0.00746`, `FiQA2018 -0.01053`, `SCIDOCS +0.00439`.
+  - `r012_first_pool_first_token_t10__loop10`: track `standalone_main`, all success flags false, dev min delta `-0.02756`, dev mean delta `-0.0095725`, dev tasks won/lost `0/4`.
+    - Dev deltas: `SciFact -0.02756`, `NFCorpus -0.00595`, `FiQA2018 -0.00474`, `SCIDOCS -0.00004`.
+- Decision: `main_goal_success=false`. Neither candidate produced a viable global dev signal. Seeded sampling has meaningful local positives on `SciFact` and `SCIDOCS`, but still regresses `NFCorpus` and `FiQA2018` with negative macro mean. First-token retrieval pooling regressed all four dev tasks.
+- Local search remains exhausted. Recent standalone dev evidence has now also falsified seeded random passage sampling as a global fix and first-token retrieval pooling as a global fix.
+
+## 2026-06-22 Research Design Round 006 And Batch 013 Portfolio
+
+- Trigger: `batch_012_dev` completed Slurm-native postprocess with `postprocess_done.json`, no `postprocess_failed.json`, and no strong viable standalone dev signal.
+- Scoreboard conclusion for `batch_012_dev` under the current claim-track policy:
+  - `r012_seeded_sampling_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact +0.00572`, `NFCorpus -0.00746`, `FiQA2018 -0.01053`, `SCIDOCS +0.00439`, min delta `-0.01053`, mean delta `-0.00197`, dev tasks won/lost `2/2`, all success flags false.
+  - `r012_first_pool_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.02756`, `NFCorpus -0.00595`, `FiQA2018 -0.00474`, `SCIDOCS -0.00004`, min delta `-0.02756`, mean delta `-0.0095725`, dev tasks won/lost `0/4`, all success flags false.
+- Decision: `main_goal_success=false`. Batch 012 was dev-only, and neither standalone candidate was globally viable.
+- Local search remains exhausted. Batch 012 further showed that seeded sampling gives split task behavior and first-token retrieval pooling is broadly harmful on the dev set.
+- Entered `RESEARCH_DESIGN_MODE` before creating a new batch.
+- Real subagents were used for the required workflow gates:
+  - one research-design subagent summarized broader standalone directions and portfolio options;
+  - one code/protocol subagent reviewed `batch_013_dev` before validation and reported no blockers.
+- Wrote the research plan at `docs/research_design_round_006.md`.
+- Broad standalone directions considered:
+  - query/document loop co-training;
+  - two-stage standard-to-loop training;
+  - medium-hard negative window;
+  - sparse or late loop supervision;
+  - label-smoothed listwise loss;
+  - candidate-internal multi-loop score smoothing;
+  - length/truncation-aware document encoding.
+- Code/config updates prepared before validation:
+  - Added deterministic `middle_negatives` passage sampling.
+  - Added registered versions `loop_two_stage_first_token` and `loop_matryoshka_first_token_middle_negatives`.
+  - Added `two_stage_loopwise` training support with a standard warmup stage followed by loopwise training.
+  - Added `configs/goal_batch_013_two_stage_first_token.yaml`.
+  - Added `configs/goal_batch_013_middle_negatives_first_token.yaml`.
+  - Created `experiments/batches/batch_013_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r013_two_stage_warmup_first_token_t10`: 25% standard hard-negative warmup followed by loopwise first-token training, fixed `loop_idx=10`.
+  - `r013_middle_negatives_first_token_t10`: first-token loopwise training with deterministic middle-window negatives, fixed `loop_idx=10`.
+- Portfolio rationale:
+  - tests two distinct mechanisms after local-search exhaustion: optimization path and negative-hardness pressure;
+  - does not retest neighboring loop depths, memory modes, or the same failed checkpoint;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses candidate-only scoring with no frozen-standard scoring input or interpolation.
+- Estimated GPU budget: 20 GPU hours against the configured 24 GPU-hour limit, with at most 2 concurrent GPU jobs.
+- Checks before submission:
+  - Research-design subagent gate passed.
+  - Code/protocol subagent gate passed with no blockers.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_013_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_013_dev.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_013_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first submit attempt failed before job creation because the cluster required site scheduler options.
+  - A sandboxed retry with site scheduler options failed before job creation because Slurm controller socket access is blocked inside the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded with site scheduler options provided only through temporary environment variables.
+  - Train/eval job IDs:
+    - `r013_two_stage_warmup_first_token_t10`: train `5156217`, eval `5156218`
+    - `r013_middle_negatives_first_token_t10`: train `5156219`, eval `5156220`
+  - Postprocess job ID: `5156221`
+  - Postprocess dependency: `afterany:5156218:5156220`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_013_dev/scoreboard.json`.
