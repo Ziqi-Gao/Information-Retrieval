@@ -470,7 +470,7 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_006_dev.yaml` passed with expected dev-only standalone warnings.
   - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_006_dev.yaml --dry-run --submit-postprocess` passed.
   - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_006_dev.yaml` passed.
-  - A scheduler-argument dry-run with `SBATCH_ARGS='--account=p32737 --partition=gengpu'` and `POSTPROCESS_SBATCH_ARGS='--account=p32737 --partition=short'` passed.
+  - A scheduler-argument dry-run with site-specific `SBATCH_ARGS` and `POSTPROCESS_SBATCH_ARGS` passed; the local account and partition names were intentionally not recorded.
 - Submission:
   - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
   - Train/eval job IDs:
