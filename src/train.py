@@ -13,9 +13,11 @@ from .data import RLHNRetrievalDataset, collate_fn
 from .experiments import get_version_spec, version_names
 from .losses import (
     final_loop_loss,
+    loopwise_label_smoothed_loss,
     loopwise_consistency_loss,
     loopwise_loss,
     loopwise_pairwise_loss,
+    loopwise_sparse_loss,
     loopwise_tail_weighted_loss,
     standard_loss,
 )
@@ -55,6 +57,8 @@ DEFAULTS: Dict[str, Any] = {
     "pairwise_margin": 0.0,
     "loop_loss_gamma": 1.25,
     "loop_consistency_lambda": 0.05,
+    "label_smoothing": 0.05,
+    "loop_loss_indices": None,
     "two_stage_warmup_ratio": 0.25,
     "bf16": False,
     "fp16": False,
@@ -96,6 +100,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pairwise_margin", type=float, default=None)
     parser.add_argument("--loop_loss_gamma", type=float, default=None)
     parser.add_argument("--loop_consistency_lambda", type=float, default=None)
+    parser.add_argument("--label_smoothing", type=float, default=None)
+    parser.add_argument("--loop_loss_indices", default=None)
     parser.add_argument("--two_stage_warmup_ratio", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
@@ -150,6 +156,8 @@ def parse_args() -> argparse.Namespace:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
     if args.two_stage_warmup_ratio < 0.0 or args.two_stage_warmup_ratio >= 1.0:
         raise ValueError("two_stage_warmup_ratio must be in [0, 1).")
+    if args.label_smoothing < 0.0 or args.label_smoothing >= 1.0:
+        raise ValueError("label_smoothing must be in [0, 1).")
     loss_type = version_spec.loss_type
     if loss_type == "loopwise_inbatch_hybrid":
         if not args.use_inbatch:
@@ -159,6 +167,23 @@ def parse_args() -> argparse.Namespace:
         print("use_inbatch=True was requested, but this version uses hard-negative loss only. Forcing use_inbatch=False.")
         args.use_inbatch = False
     return args
+
+
+def parse_loop_loss_indices(value: Any, tmax: int) -> list[int]:
+    if value is None:
+        return list(range(1, int(tmax) + 1))
+    raw_items = value
+    if isinstance(value, str):
+        raw_items = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+    elif not isinstance(value, (list, tuple)):
+        raw_items = [value]
+
+    indices = sorted({int(item) for item in raw_items})
+    if not indices:
+        raise ValueError("loop_loss_indices must contain at least one loop index.")
+    if indices[0] < 1 or indices[-1] > int(tmax):
+        raise ValueError(f"loop_loss_indices must be in [1, {int(tmax)}], got {indices}.")
+    return indices
 
 
 def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) -> torch.optim.Optimizer:
@@ -195,6 +220,24 @@ def select_loss(
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "loopwise_label_smoothed":
+        return loopwise_label_smoothed_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            label_smoothing=args.label_smoothing,
+        )
+    if loss_type == "loopwise_sparse":
+        return loopwise_sparse_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            loop_indices=parse_loop_loss_indices(args.loop_loss_indices, args.tmax),
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+        )
     if loss_type == "two_stage_loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise_inbatch_hybrid":
@@ -306,8 +349,12 @@ def run_sanity_checks(
         if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
             raise AssertionError("In-batch loss must be logged as 0.0 and excluded from this loss.")
 
-    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise"}:
+    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_label_smoothed"}:
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
+        expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type == "loopwise_sparse":
+        loop_indices = parse_loop_loss_indices(args.loop_loss_indices, args.tmax)
+        loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in loop_indices]
         expected_loss = torch.stack(loop_loss_values).mean()
     elif loss_type == "loopwise_tail_weighted":
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
@@ -379,6 +426,8 @@ def log_row(
         "two_stage_loopwise",
         "loopwise_inbatch_hybrid",
         "loopwise_pairwise",
+        "loopwise_label_smoothed",
+        "loopwise_sparse",
         "loopwise_tail_weighted",
         "loopwise_consistency",
     }:
@@ -388,6 +437,10 @@ def log_row(
                 row[key] = tensor_to_float(loss_dict[key])
     if loss_type == "loopwise_inbatch_hybrid":
         row["inbatch_weight"] = float(args.inbatch_weight)
+    if loss_type == "loopwise_label_smoothed":
+        row["label_smoothing"] = float(args.label_smoothing)
+    if loss_type == "loopwise_sparse":
+        row["loop_loss_indices"] = ",".join(str(idx) for idx in parse_loop_loss_indices(args.loop_loss_indices, args.tmax))
     if loss_type == "loopwise_pairwise":
         row["pairwise_margin"] = float(args.pairwise_margin)
         if "loss_pairwise_avg" in loss_dict:
@@ -480,6 +533,8 @@ def main() -> None:
         f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}, "
         f"embedding_pooling_mode={args.embedding_pooling_mode}, "
         f"passage_sampling_strategy={args.passage_sampling_strategy}, "
+        f"loop_loss_indices={parse_loop_loss_indices(args.loop_loss_indices, args.tmax)}, "
+        f"label_smoothing={args.label_smoothing}, "
         f"two_stage_warmup_steps={two_stage_warmup_steps}"
     )
     model.train()

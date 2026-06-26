@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -37,6 +37,39 @@ def retrieval_loss(
     }
 
 
+def label_smoothed_retrieval_loss(
+    q_emb: torch.Tensor,
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    tau: float = 0.05,
+    label_smoothing: float = 0.05,
+) -> Dict[str, torch.Tensor]:
+    if not 0.0 <= float(label_smoothing) < 1.0:
+        raise ValueError("label_smoothing must be in [0, 1).")
+    batch_size = q_emb.size(0)
+    pos_scores = (q_emb * pos_emb).sum(dim=-1, keepdim=True)
+    neg_scores = torch.einsum("bd,bkd->bk", q_emb, neg_emb)
+    logits = torch.cat([pos_scores, neg_scores], dim=1) / tau
+    num_classes = logits.size(1)
+    if num_classes < 2:
+        raise ValueError("label-smoothed retrieval loss requires at least one negative.")
+
+    smoothing = float(label_smoothing)
+    target = torch.full_like(logits, smoothing / float(num_classes - 1))
+    target[:, 0] = 1.0 - smoothing
+    log_probs = F.log_softmax(logits, dim=1)
+    loss = -(target * log_probs).sum(dim=1).mean()
+    hard_targets = torch.zeros(batch_size, dtype=torch.long, device=q_emb.device)
+    loss_hard = F.cross_entropy(logits, hard_targets)
+    loss_inbatch = torch.zeros((), dtype=loss.dtype, device=q_emb.device)
+    return {
+        "loss": loss,
+        "loss_hard": loss_hard.detach(),
+        "loss_inbatch": loss_inbatch.detach(),
+        "label_smoothing": torch.tensor(smoothing, dtype=loss.dtype, device=loss.device),
+    }
+
+
 def loopwise_loss(
     q_loops: List[torch.Tensor],
     pos_emb: torch.Tensor,
@@ -67,6 +100,79 @@ def loopwise_loss(
     output["loss"] = torch.stack(loop_losses).mean()
     output["loss_hard_avg"] = torch.stack(hard_losses).mean()
     output["loss_inbatch_avg"] = torch.stack(inbatch_losses).mean()
+    return output
+
+
+def loopwise_label_smoothed_loss(
+    q_loops: List[torch.Tensor],
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    tau: float = 0.05,
+    label_smoothing: float = 0.05,
+) -> Dict[str, torch.Tensor]:
+    loop_losses = []
+    hard_losses = []
+    output: Dict[str, torch.Tensor] = {}
+
+    for idx, q_emb in enumerate(q_loops, start=1):
+        loss_dict = label_smoothed_retrieval_loss(
+            q_emb,
+            pos_emb,
+            neg_emb,
+            tau=tau,
+            label_smoothing=label_smoothing,
+        )
+        loop_losses.append(loss_dict["loss"])
+        hard_losses.append(loss_dict["loss_hard"])
+        output[f"loss_t{idx}"] = loss_dict["loss"].detach()
+
+    zero = torch.zeros((), dtype=loop_losses[0].dtype, device=loop_losses[0].device)
+    output["loss"] = torch.stack(loop_losses).mean()
+    output["loss_hard_avg"] = torch.stack(hard_losses).mean()
+    output["loss_inbatch_avg"] = zero
+    output["label_smoothing"] = torch.tensor(float(label_smoothing), dtype=loop_losses[0].dtype, device=loop_losses[0].device)
+    return output
+
+
+def loopwise_sparse_loss(
+    q_loops: List[torch.Tensor],
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    loop_indices: Sequence[int],
+    tau: float = 0.05,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
+) -> Dict[str, torch.Tensor]:
+    if not loop_indices:
+        raise ValueError("loop_indices must contain at least one loop index.")
+    max_loop = len(q_loops)
+    normalized_indices = sorted({int(idx) for idx in loop_indices})
+    if normalized_indices[0] < 1 or normalized_indices[-1] > max_loop:
+        raise ValueError(f"loop_indices must be in [1, {max_loop}], got {normalized_indices}.")
+
+    loop_losses = []
+    hard_losses = []
+    inbatch_losses = []
+    output: Dict[str, torch.Tensor] = {}
+
+    for idx in normalized_indices:
+        loss_dict = retrieval_loss(
+            q_loops[idx - 1],
+            pos_emb,
+            neg_emb,
+            tau=tau,
+            use_inbatch=use_inbatch,
+            inbatch_weight=inbatch_weight,
+        )
+        loop_losses.append(loss_dict["loss"])
+        hard_losses.append(loss_dict["loss_hard"])
+        inbatch_losses.append(loss_dict["loss_inbatch"])
+        output[f"loss_t{idx}"] = loss_dict["loss"].detach()
+
+    output["loss"] = torch.stack(loop_losses).mean()
+    output["loss_hard_avg"] = torch.stack(hard_losses).mean()
+    output["loss_inbatch_avg"] = torch.stack(inbatch_losses).mean()
+    output["loop_loss_indices"] = torch.tensor(normalized_indices, dtype=torch.long, device=output["loss"].device)
     return output
 
 

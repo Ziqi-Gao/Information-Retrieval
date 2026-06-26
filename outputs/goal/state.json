@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_013_dev",
+    "batch_id": "batch_014_dev",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_013_dev.yaml",
-    "plan": "outputs/goal/runs/batch_013_dev/submission_plan.json",
+    "manifest": "experiments/batches/batch_014_dev.yaml",
+    "plan": "outputs/goal/runs/batch_014_dev/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "5156221"
+    "postprocess_job_id": "5196837"
   },
   "final_tasks": [
     "SciFact",
@@ -40,86 +40,86 @@
     "TRECCOVID"
   ],
   "last_decision": {
-    "batch_id": "batch_013_dev",
-    "decided_at": "2026-06-22T04:20:35Z",
-    "decision": "Submitted exactly one dev-only standalone_main portfolio batch after batch_012_dev confirmed continued local-search exhaustion. The portfolio tests two-stage standard-to-loop warmup and deterministic middle-window negatives, both with candidate-only scoring.",
+    "batch_id": "batch_014_dev",
+    "decided_at": "2026-06-26T22:26:35Z",
+    "decision": "Submitted exactly one dev-only standalone_main portfolio batch after batch_013_dev confirmed continued local-search exhaustion. The portfolio tests sparse late-loop supervision and label-smoothed listwise loss, both with candidate-only scoring.",
     "job_ids": {
-      "postprocess": "5156221",
-      "r013_middle_negatives_first_token_t10": {
-        "eval": "5156220",
-        "train": "5156219"
+      "postprocess": "5196837",
+      "r014_label_smooth_first_token_t10": {
+        "eval": "5196836",
+        "train": "5196835"
       },
-      "r013_two_stage_warmup_first_token_t10": {
-        "eval": "5156218",
-        "train": "5156217"
+      "r014_sparse_late_first_token_t10": {
+        "eval": "5196834",
+        "train": "5196833"
       }
     },
-    "next_manifest": "experiments/batches/batch_013_dev.yaml",
-    "next_plan": "outputs/goal/runs/batch_013_dev/submission_plan.json",
-    "research_plan": "docs/research_design_round_006.md",
-    "source_scoreboard": "outputs/goal/runs/batch_012_dev/scoreboard.json"
+    "next_manifest": "experiments/batches/batch_014_dev.yaml",
+    "next_plan": "outputs/goal/runs/batch_014_dev/submission_plan.json",
+    "research_plan": "docs/research_design_round_007.md",
+    "source_scoreboard": "outputs/goal/runs/batch_013_dev/scoreboard.json"
   },
   "last_dev_result": {
-    "batch_id": "batch_012_dev",
-    "best_candidate_id": "r012_seeded_sampling_first_token_t10__loop10",
+    "batch_id": "batch_013_dev",
+    "best_candidate_id": "r013_two_stage_warmup_first_token_t10__loop10",
     "best_candidate_track": "standalone_main",
-    "best_mean_delta": -0.0019700000000000134,
-    "best_min_delta": -0.010530000000000012,
+    "best_mean_delta": -0.0013725000000000126,
+    "best_min_delta": -0.00602999999999998,
     "candidates": [
       {
-        "candidate_id": "r012_seeded_sampling_first_token_t10__loop10",
+        "candidate_id": "r013_two_stage_warmup_first_token_t10__loop10",
         "candidate_track": "standalone_main",
         "dev_deltas": {
-          "FiQA2018": -0.010530000000000012,
-          "NFCorpus": -0.007459999999999994,
-          "SCIDOCS": 0.004390000000000005,
-          "SciFact": 0.005719999999999947
+          "FiQA2018": -0.00602999999999998,
+          "NFCorpus": 0.0002999999999999947,
+          "SCIDOCS": -0.002239999999999992,
+          "SciFact": 0.0024799999999999267
+        },
+        "dev_tasks_lost": 3,
+        "dev_tasks_won": 1,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "mean_delta": -0.0013725000000000126,
+        "min_delta": -0.00602999999999998,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r013_two_stage_warmup_first_token_t10",
+        "status": "completed",
+        "tasks_lost": 6,
+        "tasks_valid": 4,
+        "tasks_won": 1
+      },
+      {
+        "candidate_id": "r013_middle_negatives_first_token_t10__loop10",
+        "candidate_track": "standalone_main",
+        "dev_deltas": {
+          "FiQA2018": -0.011830000000000007,
+          "NFCorpus": 0.0016400000000000026,
+          "SCIDOCS": -0.0018799999999999928,
+          "SciFact": 0.006190000000000029
         },
         "dev_tasks_lost": 2,
         "dev_tasks_won": 2,
         "fusion_diagnostic_pass": false,
         "main_goal_success": false,
-        "mean_delta": -0.0019700000000000134,
-        "min_delta": -0.010530000000000012,
+        "mean_delta": -0.0014699999999999921,
+        "min_delta": -0.011830000000000007,
         "minimal_positive_signal": false,
         "publishable_score_candidate": false,
         "purpose": "dev",
         "research_grade_threshold_pass": false,
-        "run_id": "r012_seeded_sampling_first_token_t10",
+        "run_id": "r013_middle_negatives_first_token_t10",
         "status": "completed",
         "tasks_lost": 5,
         "tasks_valid": 4,
         "tasks_won": 2
-      },
-      {
-        "candidate_id": "r012_first_pool_first_token_t10__loop10",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {
-          "FiQA2018": -0.004740000000000022,
-          "NFCorpus": -0.005950000000000011,
-          "SCIDOCS": -3.999999999998449e-05,
-          "SciFact": -0.02756000000000003
-        },
-        "dev_tasks_lost": 4,
-        "dev_tasks_won": 0,
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": -0.009572500000000012,
-        "min_delta": -0.02756000000000003,
-        "minimal_positive_signal": false,
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r012_first_pool_first_token_t10",
-        "status": "completed",
-        "tasks_lost": 7,
-        "tasks_valid": 4,
-        "tasks_won": 0
       }
     ],
     "dev_tasks_valid": 4,
-    "evaluated_at": "2026-06-22T03:02:03Z",
-    "failure_pattern": "Seeded sampling improved SciFact and SCIDOCS but regressed NFCorpus and FiQA2018 with negative macro mean; first-token retrieval pooling regressed all four dev tasks.",
+    "evaluated_at": "2026-06-26T22:10:16Z",
+    "failure_pattern": "Two-stage warmup improved only SciFact at the main margin and regressed SCIDOCS/FiQA2018; middle negatives improved SciFact/NFCorpus but still regressed SCIDOCS/FiQA2018 with negative macro mean.",
     "fusion_diagnostic_pass": false,
     "main_goal_success": false,
     "minimal_positive_signal": false,
@@ -128,7 +128,7 @@
     "publishable_score_candidate": false,
     "purpose": "dev",
     "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_012_dev/scoreboard.json",
+    "source_scoreboard": "outputs/goal/runs/batch_013_dev/scoreboard.json",
     "strong_viable_global_dev_signal": false
   },
   "last_final_validation": {
@@ -150,28 +150,27 @@
     "tasks_won": 5
   },
   "last_postprocess_check": {
-    "batch_id": "batch_012_dev",
+    "batch_id": "batch_013_dev",
     "postprocess_done": true,
-    "postprocess_done_path": "outputs/goal/runs/batch_012_dev/postprocess_done.json",
+    "postprocess_done_path": "outputs/goal/runs/batch_013_dev/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_012_dev/scoreboard.json",
+    "scoreboard_json": "outputs/goal/runs/batch_013_dev/scoreboard.json",
     "status": "completed"
   },
-  "last_scoreboard": "outputs/goal/runs/batch_012_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_013_dev/scoreboard.json",
   "last_status_attempt": {
     "attempted_at": "2026-06-21T22:56:19Z",
     "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_011_dev --update-state",
     "result": "Local status refresh hung while querying Slurm. postprocess_done.json, scoreboard.json, and subagent workflow audit were used as terminal evidence."
   },
   "last_submission_attempts": {
-    "batch_id": "batch_013_dev",
+    "batch_id": "batch_014_dev",
     "final_attempt": "submitted_via_goal_submit_batch_with_submit_postprocess",
-    "first_attempt": "failed_before_job_creation_missing_site_scheduler_options",
-    "second_attempt": "failed_before_job_creation_sandbox_slurm_controller_socket_blocked"
+    "first_attempt": "failed_before_job_creation_sandbox_slurm_controller_socket_blocked"
   },
   "last_validation": {
-    "batch_id": "batch_013_dev",
+    "batch_id": "batch_014_dev",
     "compileall_src_scripts": "passed",
     "diff_check": "passed",
     "dry_run_submit_postprocess": "passed",
@@ -188,7 +187,7 @@
     "updated_at": "2026-06-20T02:47:51Z"
   },
   "local_search": {
-    "decided_at": "2026-06-21T22:56:19Z",
+    "decided_at": "2026-06-26T22:10:16Z",
     "evidence_batches": [
       "batch_004_dev",
       "batch_005_dev",
@@ -199,35 +198,36 @@
       "batch_009_dev_repair",
       "batch_010_dev",
       "batch_011_dev",
-      "batch_012_dev"
+      "batch_012_dev",
+      "batch_013_dev"
     ],
-    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_012_dev further falsified seeded random passage sampling as a global fix and first-token retrieval pooling; seeded sampling remained split-positive/split-negative and first-pool regressed all dev tasks.",
+    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_013_dev further falsified standard-to-loop warmup and deterministic middle-window negatives as global fixes; FiQA2018 and SCIDOCS remain recurring regressions.",
     "status": "exhausted"
   },
   "next_batch_design": {
     "allow_submit": true,
-    "batch_id": "batch_013_dev",
+    "batch_id": "batch_014_dev",
     "candidate_tracks": [
       "standalone_main"
     ],
     "candidates": [
       {
-        "candidate_rule": "25% standard warmup then loopwise first-token training, fixed loop_idx=10 on dev tasks",
+        "candidate_rule": "loop_loss_indices=[4,7,10], fixed loop_idx=10 on dev tasks",
         "candidate_track": "standalone_main",
-        "research_direction": "two-stage standard-to-loop training",
-        "run_id": "r013_two_stage_warmup_first_token_t10"
+        "research_direction": "sparse or late loop supervision",
+        "run_id": "r014_sparse_late_first_token_t10"
       },
       {
-        "candidate_rule": "deterministic middle-window negatives, fixed loop_idx=10 on dev tasks",
+        "candidate_rule": "label_smoothing=0.05, fixed loop_idx=10 on dev tasks",
         "candidate_track": "standalone_main",
-        "research_direction": "medium-hard negative window",
-        "run_id": "r013_middle_negatives_first_token_t10"
+        "research_direction": "label-smoothed listwise loss",
+        "run_id": "r014_label_smooth_first_token_t10"
       }
     ],
     "created_after_research_design_mode": true,
     "estimated_gpu_hours": 20,
     "forbidden_frozen_standard_scoring": false,
-    "manifest": "experiments/batches/batch_013_dev.yaml",
+    "manifest": "experiments/batches/batch_014_dev.yaml",
     "max_concurrent_gpu_jobs": 2,
     "purpose": "dev",
     "uses_dev_tasks_only": true
@@ -235,50 +235,50 @@
   "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_013_dev",
-      "job_id": "5156217",
-      "run_id": "r013_two_stage_warmup_first_token_t10",
+      "batch_id": "batch_014_dev",
+      "job_id": "5196833",
+      "run_id": "r014_sparse_late_first_token_t10",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_013_dev",
-      "depends_on": "5156217",
-      "job_id": "5156218",
-      "run_id": "r013_two_stage_warmup_first_token_t10",
+      "batch_id": "batch_014_dev",
+      "depends_on": "5196833",
+      "job_id": "5196834",
+      "run_id": "r014_sparse_late_first_token_t10",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_013_dev",
-      "job_id": "5156219",
-      "run_id": "r013_middle_negatives_first_token_t10",
+      "batch_id": "batch_014_dev",
+      "job_id": "5196835",
+      "run_id": "r014_label_smooth_first_token_t10",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_013_dev",
-      "depends_on": "5156219",
-      "job_id": "5156220",
-      "run_id": "r013_middle_negatives_first_token_t10",
+      "batch_id": "batch_014_dev",
+      "depends_on": "5196835",
+      "job_id": "5196836",
+      "run_id": "r014_label_smooth_first_token_t10",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_013_dev",
-      "depends_on": "afterany:5156218:5156220",
-      "job_id": "5156221",
-      "run_id": "batch_013_dev",
+      "batch_id": "batch_014_dev",
+      "depends_on": "afterany:5196834:5196836",
+      "job_id": "5196837",
+      "run_id": "batch_014_dev",
       "status": "submitted",
       "type": "postprocess"
     }
   ],
-  "phase": "WAIT_FOR_JOBS",
-  "postprocess_job_id": "5156221",
+  "phase": "SUBMIT_BATCH",
+  "postprocess_job_id": "5196837",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "6109553a667d7471525a1338cce096b211ce94ab",
+    "commit": "23a282a3673d06c26651e167ace4f97dc8516dfd",
     "dirty": true
   },
   "research_design_mode": {
@@ -286,30 +286,31 @@
     "claim_track": "standalone_main",
     "directions_considered": [
       "query/document loop co-training",
-      "two-stage standard-to-loop training",
-      "medium-hard negative window",
-      "sparse or late loop supervision",
       "label-smoothed listwise loss",
-      "candidate-internal multi-loop score smoothing",
-      "length/truncation-aware document encoding"
+      "sparse or late loop supervision",
+      "deterministic easy-to-hard negative curriculum",
+      "length/truncation-aware document encoding",
+      "candidate-only multi-loop score aggregation",
+      "non-fusion candidate-internal calibration"
     ],
-    "entered_at": "2026-06-22T04:14:26Z",
+    "entered_at": "2026-06-26T22:10:16Z",
     "estimated_gpu_hours": 20,
     "max_concurrent_gpu_jobs": 2,
-    "plan": "docs/research_design_round_006.md",
+    "plan": "docs/research_design_round_007.md",
     "portfolio_candidates": [
-      "r013_two_stage_warmup_first_token_t10",
-      "r013_middle_negatives_first_token_t10"
+      "r014_sparse_late_first_token_t10",
+      "r014_label_smooth_first_token_t10"
     ],
     "purpose": "dev",
-    "selected_batch": "batch_013_dev",
-    "selected_manifest": "experiments/batches/batch_013_dev.yaml",
-    "triggered_by": "batch_012_dev",
-    "workflow_gate": "research-design subagent completed; code/protocol gate passed before validation"
+    "selected_batch": "batch_014_dev",
+    "selected_manifest": "experiments/batches/batch_014_dev.yaml",
+    "triggered_by": "batch_013_dev",
+    "workflow_gate": "research-design subagent completed; code/protocol gate completed before validation"
   },
   "submitted_batches": [
     "batch_012_dev",
-    "batch_013_dev"
+    "batch_013_dev",
+    "batch_014_dev"
   ],
   "win_margin": 0.001
 }
