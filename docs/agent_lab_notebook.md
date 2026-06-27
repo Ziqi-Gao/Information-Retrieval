@@ -750,6 +750,7 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - keeps one global candidate rule per run across all dev tasks;
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 20 GPU hours against the configured 24 GPU-hour limit, with at most 2 concurrent GPU jobs.
+
 - Checks before submission:
   - Research-design subagent gate passed.
   - Code/protocol subagent gate passed and confirmed no existing no-code mechanism was suitable for a non-local `batch_014_dev`.
@@ -1080,3 +1081,92 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - keeps one global candidate rule per run across all dev tasks;
   - uses candidate-only scoring with no frozen-standard scoring input or interpolation.
 - Estimated GPU budget: 20 GPU hours against the configured 24 GPU-hour limit, with at most 2 concurrent GPU jobs.
+
+## 2026-06-27 Batch 014 Dev Standalone Result
+
+- `batch_014_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
+    - `r014_sparse_late_first_token_t10`: train `5196833`, eval `5196834`
+    - `r014_label_smooth_first_token_t10`: train `5196835`, eval `5196836`
+  - postprocess job: `5196837`
+  - marker: `outputs/goal/runs/batch_014_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_014_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local status refresh through `scripts/goal_status.py --batch-id batch_014_dev --update-state` was attempted but hung with no output during Slurm querying; terminal evidence is the Slurm-native postprocess marker plus scoreboard/collection files.
+- Batch purpose: `dev`; both candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r014_sparse_late_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.00584`, `NFCorpus -0.01030`, `FiQA2018 -0.01268`, `SCIDOCS -0.00732`, min delta `-0.01268`, mean delta `-0.009035`, dev tasks won/lost `0/4`, all success flags false.
+  - `r014_label_smooth_first_token_t10__loop10`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.02339`, `NFCorpus -0.01375`, `FiQA2018 -0.01087`, `SCIDOCS -0.00510`, min delta `-0.02339`, mean delta `-0.0132775`, dev tasks won/lost `0/4`, all success flags false.
+- Decision: `main_goal_success=false`. Batch 014 was dev-only, evaluated only four dev tasks by design, and both standalone candidates regressed every evaluated dev task.
+- Batch 014 gives no strong viable global dev signal.
+- Local search remains exhausted. Batch 014 further falsified sparse late-loop supervision and label-smoothed listwise loss as global fixes.
+- The first-token loop-memory standalone family is exhausted for now as a primary path. Recent batches have already falsified first-token loop-depth tuning, memory-mode variants, detached first-token training, shorter horizons, lower hard-negative count, document-loop symmetry, tail-weighted loop loss, adjacent-loop consistency, candidate-internal self-residual stabilization, in-batch hybrid contrastive loss, pairwise ranking loss, seeded random passage sampling, first-token retrieval pooling, two-stage standard-to-loop warmup, middle-window negatives, sparse late-loop supervision, and label-smoothed listwise loss.
+
+## 2026-06-27 Research Design Round 008 And Batch 015 Portfolio
+
+- Trigger: `batch_014_dev` completed Slurm-native postprocess with `postprocess_done.json`, no `postprocess_failed.json`, and no viable standalone dev signal.
+- Repository subagent workflow gate was required by `docs/codex_subagents.md`.
+- Real read-only subagents were used:
+  - `repo_auditor`: `docs/subagent_reports/repo_auditor_round_008.md`
+  - `literature_scout`: `docs/subagent_reports/literature_scout_round_008.md`
+  - `experiment_planner`: `docs/subagent_reports/experiment_planner_round_008.md`
+  - `result_analyst`: `docs/subagent_reports/result_analyst_round_008.md`
+  - summary: `docs/subagent_reports/round_008_summary.md`
+- High-risk/blocker findings:
+  - `outputs/goal/state.json` was stale and still pointed `last_dev_result`/`last_postprocess_check` at `batch_013_dev`.
+  - `docs/agent_lab_notebook.md` did not yet record the completed batch 014 result.
+  - q/doc loop co-training was judged high-risk for OOM/timeout in this one-batch cycle.
+- Resolution:
+  - This notebook and `outputs/goal/state.json` were updated with factual batch 014 results before validation/submission.
+  - Entered `RESEARCH_DESIGN_MODE` before creating the next batch.
+  - Wrote the research plan at `docs/research_design_round_008.md`.
+- Broad standalone directions considered:
+  - query/document role prompting;
+  - dimensional Matryoshka embedding supervision;
+  - role prompting plus dimensional MRL;
+  - query/document loop co-training;
+  - candidate-only teacher soft labels;
+  - multi-source retrieval data mixture;
+  - candidate-internal hard-negative mining refresh;
+  - dense late interaction.
+- Code/config updates prepared before validation:
+  - Added query/document prefix support to `LoopMatryoshkaRetriever` and checkpoint configs.
+  - Added dimensional Matryoshka retrieval loss over embedding prefixes.
+  - Added registered versions `standard_role_prompt`, `standard_dim_mrl`, and `standard_role_prompt_dim_mrl`.
+  - Added `configs/goal_batch_015_role_prompt_standard.yaml`.
+  - Added `configs/goal_batch_015_dim_mrl_standard.yaml`.
+  - Added `configs/goal_batch_015_role_dim_mrl_standard.yaml`.
+  - Created `experiments/batches/batch_015_dev.yaml`.
+- Batch purpose: `dev`.
+- Candidate track: `standalone_main` exploration only. These dev results cannot trigger `main_goal_success`.
+- Portfolio candidates:
+  - `r015_role_prompt_standard`: no-loop single-vector candidate with global `query: ` and `passage: ` prefixes, fixed `loop_idx=1`.
+  - `r015_dim_mrl_standard`: no-loop single-vector candidate with dimensional Matryoshka losses over embedding prefixes `[768,384,192]`, fixed `loop_idx=1`.
+  - `r015_role_dim_mrl_standard`: no-loop candidate combining role prefixes and dimensional Matryoshka losses, fixed `loop_idx=1`.
+- Portfolio rationale:
+  - all three selected candidates are outside the first-token loop-memory family;
+  - the role-prefix and dimensional-MRL candidates directly diagnose or address recurring FiQA2018/SCIDOCS regressions through input-role semantics and embedding-geometry regularization;
+  - the batch is not a local sweep because it does not vary `loop_idx`, first-token supervision, first-token loss type, first-token negative window, or label smoothing;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses candidate-only scoring with no frozen-standard scoring input, frozen-standard embeddings, standard-score interpolation, or standard+candidate ensemble.
+- Estimated GPU budget: 21 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
+- Checks before submission:
+  - Code-risk subagent gate completed with no blockers or high-severity findings; a low-risk `standard_dim_mrl` logging issue was fixed before validation, and state was advanced to batch 015 by dry-run before preflight.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_015_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_015_dev.yaml --dry-run --submit-postprocess` passed and wrote `outputs/goal/runs/batch_015_dev/dry_run_plan.json`.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_015_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The sandboxed submit attempt failed before job creation because Slurm controller socket access is blocked inside the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded with site scheduler options provided only through temporary environment variables.
+  - Train/eval job IDs:
+    - `r015_role_prompt_standard`: train `5330034`, eval `5330035`
+    - `r015_dim_mrl_standard`: train `5330036`, eval `5330037`
+    - `r015_role_dim_mrl_standard`: train `5330038`, eval `5330039`
+  - Postprocess job ID: `5330040`
+  - Postprocess dependency: `afterany:5330035:5330037:5330039`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_015_dev/scoreboard.json`.

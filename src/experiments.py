@@ -43,6 +43,33 @@ VERSION_SPECS: Dict[str, VersionSpec] = {
         plot_kind="baseline",
         color="black",
     ),
+    "standard_role_prompt": VersionSpec(
+        name="standard_role_prompt",
+        family="standard",
+        loss_type="standard",
+        description="No-loop hard-negative retriever trained and evaluated with query/document role prefixes.",
+        eval_all_loops=False,
+        plot_kind="curve",
+        color="#4daf4a",
+    ),
+    "standard_dim_mrl": VersionSpec(
+        name="standard_dim_mrl",
+        family="standard",
+        loss_type="standard_dim_mrl",
+        description="No-loop hard-negative retriever with dimensional Matryoshka embedding supervision.",
+        eval_all_loops=False,
+        plot_kind="curve",
+        color="#377eb8",
+    ),
+    "standard_role_prompt_dim_mrl": VersionSpec(
+        name="standard_role_prompt_dim_mrl",
+        family="standard",
+        loss_type="standard_dim_mrl",
+        description="No-loop retriever combining role prefixes with dimensional Matryoshka supervision.",
+        eval_all_loops=False,
+        plot_kind="curve",
+        color="#984ea3",
+    ),
     "loop_final": VersionSpec(
         name="loop_final",
         family="loop",
@@ -255,6 +282,9 @@ VERSION_SPECS: Dict[str, VersionSpec] = {
 
 MAIN_VERSIONS: Sequence[str] = (
     "standard",
+    "standard_role_prompt",
+    "standard_dim_mrl",
+    "standard_role_prompt_dim_mrl",
     "loop_final",
     "loop_matryoshka",
     "loop_matryoshka_first_token",

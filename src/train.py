@@ -12,6 +12,7 @@ from transformers import get_linear_schedule_with_warmup
 from .data import RLHNRetrievalDataset, collate_fn
 from .experiments import get_version_spec, version_names
 from .losses import (
+    dimensional_matryoshka_retrieval_loss,
     final_loop_loss,
     loopwise_label_smoothed_loss,
     loopwise_consistency_loss,
@@ -59,6 +60,7 @@ DEFAULTS: Dict[str, Any] = {
     "loop_consistency_lambda": 0.05,
     "label_smoothing": 0.05,
     "loop_loss_indices": None,
+    "matryoshka_dims": None,
     "two_stage_warmup_ratio": 0.25,
     "bf16": False,
     "fp16": False,
@@ -72,6 +74,8 @@ DEFAULTS: Dict[str, Any] = {
     "loop_query_mode": "initial_embedding",
     "embedding_pooling_mode": "mean_pool",
     "passage_sampling_strategy": "first",
+    "query_prefix": "",
+    "doc_prefix": "",
 }
 
 
@@ -102,6 +106,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loop_consistency_lambda", type=float, default=None)
     parser.add_argument("--label_smoothing", type=float, default=None)
     parser.add_argument("--loop_loss_indices", default=None)
+    parser.add_argument("--matryoshka_dims", default=None)
     parser.add_argument("--two_stage_warmup_ratio", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
@@ -115,6 +120,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loop_query_mode", choices=["initial_embedding", "recurrent_hidden"], default=None)
     parser.add_argument("--embedding_pooling_mode", choices=["mean_pool", "first_token"], default=None)
     parser.add_argument("--passage_sampling_strategy", choices=["first", "middle_negatives", "seeded_random"], default=None)
+    parser.add_argument("--query_prefix", default=None)
+    parser.add_argument("--doc_prefix", default=None)
     return parser
 
 
@@ -186,6 +193,23 @@ def parse_loop_loss_indices(value: Any, tmax: int) -> list[int]:
     return indices
 
 
+def parse_matryoshka_dims(value: Any, embedding_dim: int) -> list[int]:
+    if value is None:
+        return [int(embedding_dim)]
+    raw_items = value
+    if isinstance(value, str):
+        raw_items = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+    elif not isinstance(value, (list, tuple)):
+        raw_items = [value]
+
+    dims = sorted({int(item) for item in raw_items}, reverse=True)
+    if not dims:
+        raise ValueError("matryoshka_dims must contain at least one embedding dimension.")
+    if dims[0] > int(embedding_dim) or dims[-1] < 1:
+        raise ValueError(f"matryoshka_dims must be in [1, {int(embedding_dim)}], got {dims}.")
+    return dims
+
+
 def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) -> torch.optim.Optimizer:
     return torch.optim.AdamW(
         [
@@ -216,6 +240,16 @@ def select_loss(
     loss_type = get_version_spec(version).loss_type
     if loss_type == "standard":
         return standard_loss(q_loops[0], pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "standard_dim_mrl":
+        return dimensional_matryoshka_retrieval_loss(
+            q_loops[0],
+            pos_emb,
+            neg_emb,
+            dims=parse_matryoshka_dims(args.matryoshka_dims, q_loops[0].size(-1)),
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+        )
     if loss_type == "final_loop":
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise":
@@ -349,7 +383,11 @@ def run_sanity_checks(
         if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
             raise AssertionError("In-batch loss must be logged as 0.0 and excluded from this loss.")
 
-    if loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_label_smoothed"}:
+    if loss_type == "standard_dim_mrl":
+        dims = parse_matryoshka_dims(args.matryoshka_dims, model.embedding_dim)
+        loop_loss_values = [loss_dict[f"loss_dim{dim}"] for dim in dims]
+        expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_label_smoothed"}:
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
         expected_loss = torch.stack(loop_loss_values).mean()
     elif loss_type == "loopwise_sparse":
@@ -422,6 +460,7 @@ def log_row(
     if "_training_stage" in loss_dict:
         row["training_stage"] = str(loss_dict["_training_stage"])
     if loss_type in {
+        "standard_dim_mrl",
         "loopwise",
         "two_stage_loopwise",
         "loopwise_inbatch_hybrid",
@@ -431,10 +470,18 @@ def log_row(
         "loopwise_tail_weighted",
         "loopwise_consistency",
     }:
-        for idx in range(1, args.tmax + 1):
-            key = f"loss_t{idx}"
-            if key in loss_dict:
-                row[key] = tensor_to_float(loss_dict[key])
+        if loss_type == "standard_dim_mrl":
+            dims = [int(dim) for dim in loss_dict["matryoshka_dims"].detach().cpu().tolist()]
+            row["matryoshka_dims"] = ",".join(str(dim) for dim in dims)
+            for dim in dims:
+                key = f"loss_dim{dim}"
+                if key in loss_dict:
+                    row[key] = tensor_to_float(loss_dict[key])
+        else:
+            for idx in range(1, args.tmax + 1):
+                key = f"loss_t{idx}"
+                if key in loss_dict:
+                    row[key] = tensor_to_float(loss_dict[key])
     if loss_type == "loopwise_inbatch_hybrid":
         row["inbatch_weight"] = float(args.inbatch_weight)
     if loss_type == "loopwise_label_smoothed":
@@ -506,6 +553,8 @@ def main() -> None:
         loop_memory_mode=args.loop_memory_mode,
         loop_query_mode=args.loop_query_mode,
         embedding_pooling_mode=args.embedding_pooling_mode,
+        query_prefix=args.query_prefix,
+        doc_prefix=args.doc_prefix,
     ).to(device)
     assert_encoder_only_trainable(model)
 
@@ -534,6 +583,8 @@ def main() -> None:
         f"embedding_pooling_mode={args.embedding_pooling_mode}, "
         f"passage_sampling_strategy={args.passage_sampling_strategy}, "
         f"loop_loss_indices={parse_loop_loss_indices(args.loop_loss_indices, args.tmax)}, "
+        f"matryoshka_dims={parse_matryoshka_dims(args.matryoshka_dims, model.embedding_dim)}, "
+        f"query_prefix={args.query_prefix!r}, doc_prefix={args.doc_prefix!r}, "
         f"label_smoothing={args.label_smoothing}, "
         f"two_stage_warmup_steps={two_stage_warmup_steps}"
     )

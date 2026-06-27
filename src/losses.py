@@ -70,6 +70,51 @@ def label_smoothed_retrieval_loss(
     }
 
 
+def _prefix_normalize(emb: torch.Tensor, dim: int) -> torch.Tensor:
+    if dim <= 0 or dim > emb.size(-1):
+        raise ValueError(f"Matryoshka dim must be in [1, {emb.size(-1)}], got {dim}.")
+    return F.normalize(emb[..., :dim], p=2, dim=-1)
+
+
+def dimensional_matryoshka_retrieval_loss(
+    q_emb: torch.Tensor,
+    pos_emb: torch.Tensor,
+    neg_emb: torch.Tensor,
+    dims: Sequence[int],
+    tau: float = 0.05,
+    use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
+) -> Dict[str, torch.Tensor]:
+    normalized_dims = sorted({int(dim) for dim in dims}, reverse=True)
+    if not normalized_dims:
+        raise ValueError("dimensional Matryoshka loss requires at least one embedding dimension.")
+
+    losses = []
+    hard_losses = []
+    inbatch_losses = []
+    output: Dict[str, torch.Tensor] = {}
+
+    for dim in normalized_dims:
+        loss_dict = retrieval_loss(
+            _prefix_normalize(q_emb, dim),
+            _prefix_normalize(pos_emb, dim),
+            _prefix_normalize(neg_emb, dim),
+            tau=tau,
+            use_inbatch=use_inbatch,
+            inbatch_weight=inbatch_weight,
+        )
+        losses.append(loss_dict["loss"])
+        hard_losses.append(loss_dict["loss_hard"])
+        inbatch_losses.append(loss_dict["loss_inbatch"])
+        output[f"loss_dim{dim}"] = loss_dict["loss"].detach()
+
+    output["loss"] = torch.stack(losses).mean()
+    output["loss_hard_avg"] = torch.stack(hard_losses).mean()
+    output["loss_inbatch_avg"] = torch.stack(inbatch_losses).mean()
+    output["matryoshka_dims"] = torch.tensor(normalized_dims, dtype=torch.long, device=output["loss"].device)
+    return output
+
+
 def loopwise_loss(
     q_loops: List[torch.Tensor],
     pos_emb: torch.Tensor,
