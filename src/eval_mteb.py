@@ -1,5 +1,6 @@
 import argparse
 import csv
+import logging
 import hashlib
 import math
 from pathlib import Path
@@ -116,6 +117,7 @@ def fusion_artifact_dir_name(scope: str, alpha: float) -> str:
 
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+LOGGER = logging.getLogger(__name__)
 
 
 def eval_alpha_text(alpha: float) -> str:
@@ -128,6 +130,52 @@ def doc_chunk_artifact_dir_name(chunk_words: int, chunk_stride: int, max_chunks:
 
 def lexical_artifact_dir_name(hash_dim: int, weight: float) -> str:
     return "lexhash_d{}_a{}".format(int(hash_dim), eval_alpha_text(float(weight)))
+
+
+def patch_mteb_fiqa_qrels_loader() -> None:
+    """Select the explicit FiQA qrels config when MTEB falls back to local cache.
+
+    MTEB 1.39.7 loads FiQA corpus and queries with explicit configs but loads
+    qrels from ``mteb/fiqa`` without a config. In offline/cache fallback mode,
+    Hugging Face datasets then sees the cached ``corpus``, ``queries``, and
+    ``default`` configs and raises an ambiguity error. The ``default`` config is
+    the FiQA qrels table, so this patch only disambiguates data loading and does
+    not alter scoring, metrics, model embeddings, or candidate rules.
+    """
+    try:
+        from datasets import Features, Value, load_dataset
+        from mteb.abstasks.AbsTaskRetrieval import HFDataLoader
+    except Exception as exc:  # pragma: no cover - depends on optional eval deps
+        LOGGER.debug("Skipping FiQA qrels loader patch: %s", exc)
+        return
+
+    if getattr(HFDataLoader, "_loopmat_fiqa_qrels_default_patch", False):
+        return
+
+    original_load_qrels = HFDataLoader._load_qrels
+
+    def _load_qrels_with_fiqa_default(self, split):
+        if getattr(self, "hf_repo_qrels", None) == "mteb/fiqa":
+            qrels_ds = load_dataset(
+                self.hf_repo_qrels,
+                "default",
+                keep_in_memory=self.keep_in_memory,
+                streaming=self.streaming,
+                trust_remote_code=self.trust_remote_code,
+            )[split]
+            features = Features(
+                {
+                    "query-id": Value("string"),
+                    "corpus-id": Value("string"),
+                    "score": Value("float"),
+                }
+            )
+            self.qrels = qrels_ds.cast(features)
+            return
+        return original_load_qrels(self, split)
+
+    HFDataLoader._load_qrels = _load_qrels_with_fiqa_default
+    HFDataLoader._loopmat_fiqa_qrels_default_patch = True
 
 
 def split_word_chunks(text: str, chunk_words: int, chunk_stride: int, max_chunks: int) -> List[str]:
@@ -453,6 +501,7 @@ def evaluate_one_loop(
             "Use a PYTHON_BIN that has mteb installed, or install only the missing evaluation dependency "
             "into the intended project-space environment."
         ) from exc
+    patch_mteb_fiqa_qrels_loader()
 
     output_dir = ensure_dir(args.output_dir)
     artifact_dir = ensure_dir(output_dir / args.version / safe_task_dir_name(task_name))

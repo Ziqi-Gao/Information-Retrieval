@@ -1029,6 +1029,41 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Candidate-only dense+lexical hash remains untested on the full dev set because the eval job failed for an infrastructure/cache reason.
 - Stop condition assessment: the latest batch completed postprocess but contains a failed/missing candidate row requiring diagnosis before any further research design. A repair may be valid only if it preserves the exact `r017_seeded_lexical_hash` candidate rule and passes the repository subagent/workflow gates before validation or submission.
 
+## 2026-06-28 Batch 017 Dev Repair Submission
+
+- Repair trigger: `r017_seeded_lexical_hash__loop1` in `batch_017_dev` was `missing_result` because MTEB/HF datasets loaded FiQA qrels without a config while the local cache had `queries`, `corpus`, and `default` configs.
+- Root cause: MTEB 1.39.7 generic retrieval loading specifies `corpus` and `queries` configs but calls config-less `load_dataset("mteb/fiqa")` for qrels. In offline/cache fallback this is ambiguous. The cached FiQA `default` config is the qrels table.
+- Infrastructure fix: `src/eval_mteb.py` now applies a narrow repo-local patch for FiQA qrels loading that selects the `default` config. This does not change corpus/query text, candidate embeddings, ranking scores, NDCG parsing, metric semantics, candidate loop, or lexical hash scoring.
+- Repository workflow gate required by `docs/codex_subagents.md` was satisfied before validation/submission:
+  - `repo_auditor`: `docs/subagent_reports/repo_auditor_round_011.md`
+  - `literature_scout`: `docs/subagent_reports/literature_scout_round_011.md`
+  - `experiment_planner`: `docs/subagent_reports/experiment_planner_round_011.md`
+  - `code_risk_reviewer`: `docs/subagent_reports/code_risk_reviewer_round_011.md`
+  - summary: `docs/subagent_reports/round_011_summary.md`
+- Code-risk result: no blockers or high-severity protocol risks. Medium residual risks are limited to the private MTEB loader monkey-patch, dev-only interpretation, and avoiding partial-output backfill.
+- Repair manifest: `experiments/batches/batch_017_dev_repair.yaml`.
+- Repair scope:
+  - includes only `r017_seeded_lexical_hash`;
+  - preserves the original candidate rule: `standard_seeded_sampling`, r016 checkpoint, `loop_idx=1`, `lexical_hash_dim=1024`, `lexical_weight=0.15`;
+  - evaluates the same dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, `SCIDOCS`;
+  - uses candidate-only scoring with no frozen-standard fusion, standard-score interpolation, or ensemble input.
+- Loader seam test:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -c "import mteb; from src.eval_mteb import patch_mteb_fiqa_qrels_loader; patch_mteb_fiqa_qrels_loader(); task=mteb.get_tasks(tasks=['FiQA2018'])[0]; task.load_data(); print('loaded', sorted(task.corpus.keys()), sorted(task.queries.keys()), sorted(task.relevant_docs.keys()))"` passed and loaded FiQA corpus, queries, and qrels from the existing cache.
+- Required validation before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_017_dev_repair.yaml` passed with expected dev-only standalone warning.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_017_dev_repair.yaml --dry-run --submit-postprocess` passed and produced one eval-only repair job plus one dependent postprocess job in the dry-run plan.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_017_dev_repair.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Site scheduler options were provided only through temporary environment variables and not written to tracked config.
+  - Eval job ID: `5385545`.
+  - Postprocess job ID: `5385546`.
+  - Postprocess dependency: `afterany:5385545`.
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_017_dev_repair/scoreboard.json`.
+
 ## 2026-06-21 Research Design Round 005 And Batch 012 Portfolio
 
 - Trigger: `batch_011_dev` completed Slurm-native postprocess with `postprocess_done.json` and no `postprocess_failed.json`.
