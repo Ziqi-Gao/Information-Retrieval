@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_015_dev",
+    "batch_id": "batch_016_dev",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_015_dev.yaml",
-    "plan": "outputs/goal/runs/batch_015_dev/submission_plan.json",
+    "manifest": "experiments/batches/batch_016_dev.yaml",
+    "plan": "outputs/goal/runs/batch_016_dev/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "5330040"
+    "postprocess_job_id": "5340275"
   },
   "final_tasks": [
     "SciFact",
@@ -40,90 +40,115 @@
     "TRECCOVID"
   ],
   "last_decision": {
-    "batch_id": "batch_015_dev",
-    "decided_at": "2026-06-27T20:13:52Z",
-    "decision": "Submitted exactly one dev-only standalone_main portfolio batch after batch_014_dev confirmed no viable global dev signal and first-token loop-memory standalone exhaustion. The portfolio tests no-loop role prompting, dimensional Matryoshka embedding supervision, and their combination with candidate-only scoring.",
+    "batch_id": "batch_016_dev",
+    "decided_at": "2026-06-28T01:35:19Z",
+    "decision": "Submitted exactly one dev-only standalone_main portfolio batch after batch_015_dev confirmed no viable global dev signal. The portfolio tests q/doc loop symmetry, no-loop seeded passage sampling, and no-loop candidate-only in-batch geometry.",
     "job_ids": {
-      "postprocess": "5330040",
-      "r015_role_prompt_standard": {
-        "train": "5330034",
-        "eval": "5330035"
+      "postprocess": "5340275",
+      "r016_qdoc_final_mean_pool_t3_neg3": {
+        "eval": "5340270",
+        "train": "5340269"
       },
-      "r015_dim_mrl_standard": {
-        "train": "5330036",
-        "eval": "5330037"
+      "r016_standard_inbatch_hybrid": {
+        "eval": "5340274",
+        "train": "5340273"
       },
-      "r015_role_dim_mrl_standard": {
-        "train": "5330038",
-        "eval": "5330039"
+      "r016_standard_seeded_sampling": {
+        "eval": "5340272",
+        "train": "5340271"
       }
     },
-    "next_manifest": "experiments/batches/batch_015_dev.yaml",
-    "next_plan": "outputs/goal/runs/batch_015_dev/submission_plan.json",
-    "research_plan": "docs/research_design_round_008.md",
-    "source_scoreboard": "outputs/goal/runs/batch_014_dev/scoreboard.json"
+    "next_manifest": "experiments/batches/batch_016_dev.yaml",
+    "next_plan": "outputs/goal/runs/batch_016_dev/submission_plan.json",
+    "research_plan": "docs/research_design_round_009.md",
+    "source_scoreboard": "outputs/goal/runs/batch_015_dev/scoreboard.json"
   },
   "last_dev_result": {
-    "batch_id": "batch_014_dev",
-    "best_candidate_id": "r014_sparse_late_first_token_t10__loop10",
+    "batch_id": "batch_015_dev",
+    "best_candidate_id": "r015_role_dim_mrl_standard__loop1",
     "best_candidate_track": "standalone_main",
-    "best_mean_delta": -0.009035000000000015,
-    "best_min_delta": -0.012679999999999997,
+    "best_mean_delta": 0.0021225000000000063,
+    "best_min_delta": -0.0031999999999999806,
     "candidates": [
       {
-        "candidate_id": "r014_sparse_late_first_token_t10__loop10",
+        "candidate_id": "r015_role_dim_mrl_standard__loop1",
         "candidate_track": "standalone_main",
         "dev_deltas": {
-          "FiQA2018": -0.012679999999999997,
-          "NFCorpus": -0.010300000000000004,
-          "SCIDOCS": -0.007319999999999993,
-          "SciFact": -0.005840000000000067
+          "FiQA2018": -0.0025499999999999967,
+          "NFCorpus": 0.008619999999999989,
+          "SCIDOCS": 0.005620000000000014,
+          "SciFact": -0.0031999999999999806
         },
-        "dev_tasks_lost": 4,
-        "dev_tasks_won": 0,
+        "dev_tasks_lost": 2,
+        "dev_tasks_won": 2,
         "fusion_diagnostic_pass": false,
         "main_goal_success": false,
-        "mean_delta": -0.009035000000000015,
-        "min_delta": -0.012679999999999997,
+        "mean_delta": 0.0021225000000000063,
+        "min_delta": -0.0031999999999999806,
         "minimal_positive_signal": false,
         "publishable_score_candidate": false,
         "purpose": "dev",
         "research_grade_threshold_pass": false,
-        "run_id": "r014_sparse_late_first_token_t10",
+        "run_id": "r015_role_dim_mrl_standard",
         "status": "completed",
-        "tasks_lost": 7,
+        "tasks_lost": 5,
         "tasks_valid": 4,
-        "tasks_won": 0
+        "tasks_won": 2
       },
       {
-        "candidate_id": "r014_label_smooth_first_token_t10__loop10",
+        "candidate_id": "r015_role_prompt_standard__loop1",
         "candidate_track": "standalone_main",
         "dev_deltas": {
-          "FiQA2018": -0.01086999999999999,
-          "NFCorpus": -0.013750000000000012,
-          "SCIDOCS": -0.005099999999999993,
-          "SciFact": -0.023390000000000022
+          "FiQA2018": -0.00713999999999998,
+          "NFCorpus": 0.009099999999999997,
+          "SCIDOCS": 0.0018499999999999905,
+          "SciFact": -0.007299999999999973
         },
-        "dev_tasks_lost": 4,
-        "dev_tasks_won": 0,
+        "dev_tasks_lost": 2,
+        "dev_tasks_won": 2,
         "fusion_diagnostic_pass": false,
         "main_goal_success": false,
-        "mean_delta": -0.013277500000000005,
-        "min_delta": -0.023390000000000022,
+        "mean_delta": -0.0008724999999999913,
+        "min_delta": -0.007299999999999973,
         "minimal_positive_signal": false,
         "publishable_score_candidate": false,
         "purpose": "dev",
         "research_grade_threshold_pass": false,
-        "run_id": "r014_label_smooth_first_token_t10",
+        "run_id": "r015_role_prompt_standard",
         "status": "completed",
-        "tasks_lost": 7,
+        "tasks_lost": 5,
         "tasks_valid": 4,
-        "tasks_won": 0
+        "tasks_won": 2
+      },
+      {
+        "candidate_id": "r015_dim_mrl_standard__loop1",
+        "candidate_track": "standalone_main",
+        "dev_deltas": {
+          "FiQA2018": -0.0018299999999999983,
+          "NFCorpus": 0.0003999999999999837,
+          "SCIDOCS": 0.0013200000000000156,
+          "SciFact": -0.009660000000000002
+        },
+        "dev_tasks_lost": 3,
+        "dev_tasks_won": 1,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "mean_delta": -0.0024425000000000002,
+        "min_delta": -0.009660000000000002,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r015_dim_mrl_standard",
+        "status": "completed",
+        "tasks_lost": 6,
+        "tasks_valid": 4,
+        "tasks_won": 1
       }
     ],
     "dev_tasks_valid": 4,
-    "evaluated_at": "2026-06-27T08:04:04Z",
-    "failure_pattern": "Both standalone_main dev candidates regressed all four evaluated dev tasks; sparse late-loop supervision and label-smoothed listwise loss failed to recover FiQA2018/SCIDOCS and also lost SciFact/NFCorpus.",
+    "evaluated_at": "2026-06-27T21:56:51Z",
+    "failure_pattern": "All three standalone_main dev candidates regressed SciFact and FiQA2018. Gains concentrated on NFCorpus and SCIDOCS, especially for role+dimensional-MRL, but no candidate was globally non-regressing.",
     "fusion_diagnostic_pass": false,
     "main_goal_success": false,
     "minimal_positive_signal": false,
@@ -132,7 +157,7 @@
     "publishable_score_candidate": false,
     "purpose": "dev",
     "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_014_dev/scoreboard.json",
+    "source_scoreboard": "outputs/goal/runs/batch_015_dev/scoreboard.json",
     "strong_viable_global_dev_signal": false
   },
   "last_final_validation": {
@@ -154,28 +179,29 @@
     "tasks_won": 5
   },
   "last_postprocess_check": {
-    "batch_id": "batch_014_dev",
+    "batch_id": "batch_015_dev",
     "postprocess_done": true,
-    "postprocess_done_path": "outputs/goal/runs/batch_014_dev/postprocess_done.json",
+    "postprocess_done_path": "outputs/goal/runs/batch_015_dev/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_014_dev/scoreboard.json",
+    "scoreboard_json": "outputs/goal/runs/batch_015_dev/scoreboard.json",
     "status": "completed"
   },
-  "last_scoreboard": "outputs/goal/runs/batch_014_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_015_dev/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-27T20:04:20Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_014_dev --update-state",
-    "result": "Local status refresh hung while querying Slurm; postprocess_done.json, collected_results.csv, scoreboard.json, and subagent workflow audit were used as terminal evidence."
+    "attempted_at": "2026-06-27T22:00:00Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_015_dev --update-state",
+    "result": "Sandboxed status refresh timed out after 120 seconds during Slurm querying; the same repository command with external Slurm access confirmed all train, eval, and postprocess jobs completed."
   },
   "last_submission_attempts": {
-    "batch_id": "batch_015_dev",
-    "first_attempt": "failed_before_job_creation_sandbox_slurm_controller_socket_blocked",
-    "final_attempt": "submitted_via_goal_submit_batch_with_submit_postprocess"
+    "batch_id": "batch_016_dev",
+    "final_attempt": "submitted_via_goal_submit_batch_with_submit_postprocess",
+    "first_attempt": "failed_before_job_creation_missing_site_partition",
+    "second_attempt": "failed_before_job_creation_sandbox_slurm_controller_socket_blocked"
   },
   "last_validation": {
-    "batch_id": "batch_015_dev",
-    "code_risk_review": "passed_no_blockers_or_high_findings; low logging issue fixed; state advanced by dry-run before preflight",
+    "batch_id": "batch_016_dev",
+    "code_risk_review": "passed_no_protocol_blockers; qdoc_runtime_high_risk_resolved_by_reducing_train_sample_size_to_12000",
     "compileall_src_scripts": "passed",
     "diff_check": "passed",
     "dry_run_submit_postprocess": "passed",
@@ -192,7 +218,7 @@
     "updated_at": "2026-06-20T02:47:51Z"
   },
   "local_search": {
-    "decided_at": "2026-06-27T20:04:20Z",
+    "decided_at": "2026-06-27T22:00:00Z",
     "evidence_batches": [
       "batch_004_dev",
       "batch_005_dev",
@@ -205,44 +231,45 @@
       "batch_011_dev",
       "batch_012_dev",
       "batch_013_dev",
-      "batch_014_dev"
+      "batch_014_dev",
+      "batch_015_dev"
     ],
-    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_014_dev further falsified sparse late-loop supervision and label-smoothed listwise loss; first-token loop-memory standalone search is exhausted for now, with FiQA2018 and SCIDOCS recurring regressions and batch_014 now regressing all four dev tasks.",
+    "reason": "Recent standalone_main dev batches failed to produce a viable global dev signal. Batch_015_dev moved outside first-token loop-memory and tested no-loop role prompting, dimensional MRL, and their combination; all still regressed SciFact and FiQA2018. First-token loop-memory remains exhausted, and simple no-loop role/MRL variants are insufficient.",
     "status": "exhausted"
   },
   "next_batch_design": {
     "allow_submit": true,
-    "batch_id": "batch_015_dev",
+    "batch_id": "batch_016_dev",
     "candidate_tracks": [
       "standalone_main"
     ],
     "candidates": [
       {
-        "candidate_rule": "role prefixes query:/passage:, fixed loop_idx=1 on dev tasks",
+        "candidate_rule": "mean-pool q/doc loop co-training with tmax=3, num_negatives=3, train_sample_size=12000, loop_idx=3, loop_docs=true, doc_loop_idx=3 on all dev tasks",
         "candidate_track": "standalone_main",
-        "outside_first_token_loop_memory_family": true,
-        "research_direction": "query/document role prompting",
-        "run_id": "r015_role_prompt_standard"
+        "outside_exhausted_mechanism_families": true,
+        "research_direction": "query/document loop co-training",
+        "run_id": "r016_qdoc_final_mean_pool_t3_neg3"
       },
       {
-        "candidate_rule": "matryoshka_dims=[768,384,192], fixed loop_idx=1 on dev tasks",
+        "candidate_rule": "no-loop standard candidate with deterministic seeded positive/negative passage sampling, fixed loop_idx=1 on all dev tasks",
         "candidate_track": "standalone_main",
-        "outside_first_token_loop_memory_family": true,
-        "research_direction": "dimensional Matryoshka embedding supervision",
-        "run_id": "r015_dim_mrl_standard"
+        "outside_exhausted_mechanism_families": true,
+        "research_direction": "no-loop seeded passage sampling",
+        "run_id": "r016_standard_seeded_sampling"
       },
       {
-        "candidate_rule": "role prefixes plus matryoshka_dims=[768,384,192], fixed loop_idx=1 on dev tasks",
+        "candidate_rule": "no-loop standard hard-negative loss plus candidate-only in-batch positive classification, inbatch_weight=0.25, fixed loop_idx=1 on all dev tasks",
         "candidate_track": "standalone_main",
-        "outside_first_token_loop_memory_family": true,
-        "research_direction": "role prompting plus dimensional MRL",
-        "run_id": "r015_role_dim_mrl_standard"
+        "outside_exhausted_mechanism_families": true,
+        "research_direction": "no-loop candidate-only in-batch hybrid objective",
+        "run_id": "r016_standard_inbatch_hybrid"
       }
     ],
     "created_after_research_design_mode": true,
     "estimated_gpu_hours": 21,
     "forbidden_frozen_standard_scoring": false,
-    "manifest": "experiments/batches/batch_015_dev.yaml",
+    "manifest": "experiments/batches/batch_016_dev.yaml",
     "max_concurrent_gpu_jobs": 3,
     "purpose": "dev",
     "uses_dev_tasks_only": true
@@ -250,100 +277,101 @@
   "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_015_dev",
-      "job_id": "5330034",
-      "run_id": "r015_role_prompt_standard",
+      "batch_id": "batch_016_dev",
+      "job_id": "5340269",
+      "run_id": "r016_qdoc_final_mean_pool_t3_neg3",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_015_dev",
-      "depends_on": "5330034",
-      "job_id": "5330035",
-      "run_id": "r015_role_prompt_standard",
+      "batch_id": "batch_016_dev",
+      "depends_on": "5340269",
+      "job_id": "5340270",
+      "run_id": "r016_qdoc_final_mean_pool_t3_neg3",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_015_dev",
-      "job_id": "5330036",
-      "run_id": "r015_dim_mrl_standard",
+      "batch_id": "batch_016_dev",
+      "job_id": "5340271",
+      "run_id": "r016_standard_seeded_sampling",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_015_dev",
-      "depends_on": "5330036",
-      "job_id": "5330037",
-      "run_id": "r015_dim_mrl_standard",
+      "batch_id": "batch_016_dev",
+      "depends_on": "5340271",
+      "job_id": "5340272",
+      "run_id": "r016_standard_seeded_sampling",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_015_dev",
-      "job_id": "5330038",
-      "run_id": "r015_role_dim_mrl_standard",
+      "batch_id": "batch_016_dev",
+      "job_id": "5340273",
+      "run_id": "r016_standard_inbatch_hybrid",
       "status": "submitted",
       "type": "train"
     },
     {
-      "batch_id": "batch_015_dev",
-      "depends_on": "5330038",
-      "job_id": "5330039",
-      "run_id": "r015_role_dim_mrl_standard",
+      "batch_id": "batch_016_dev",
+      "depends_on": "5340273",
+      "job_id": "5340274",
+      "run_id": "r016_standard_inbatch_hybrid",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_015_dev",
-      "depends_on": "afterany:5330035:5330037:5330039",
-      "job_id": "5330040",
-      "run_id": "batch_015_dev",
+      "batch_id": "batch_016_dev",
+      "depends_on": "afterany:5340270:5340272:5340274",
+      "job_id": "5340275",
+      "run_id": "batch_016_dev",
       "status": "submitted",
       "type": "postprocess"
     }
   ],
   "phase": "SUBMIT_BATCH",
-  "postprocess_job_id": "5330040",
+  "postprocess_job_id": "5340275",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "831a8f7e2ad562753648124091c8500142526f43",
+    "commit": "ba7f6ab3c7b4ec6ea4dd8dc191d8c033bba8c6d5",
     "dirty": true
   },
   "research_design_mode": {
     "allowed_gpu_hours": 24.0,
     "claim_track": "standalone_main",
     "directions_considered": [
-      "query/document role prompting",
-      "dimensional Matryoshka embedding supervision",
-      "role prompting plus dimensional MRL",
       "query/document loop co-training",
-      "candidate-only teacher soft labels",
-      "multi-source retrieval data mixture",
-      "candidate-internal hard-negative mining refresh",
-      "dense late interaction"
+      "no-loop seeded passage sampling",
+      "no-loop candidate-only in-batch hybrid objective",
+      "length/truncation-aware document encoding",
+      "embedding norm/isotropy regularization",
+      "candidate-only sparse+dense hybrid",
+      "audited multi-source retrieval data mixture",
+      "standalone late interaction"
     ],
-    "entered_at": "2026-06-27T20:04:20Z",
+    "entered_at": "2026-06-27T22:00:00Z",
     "estimated_gpu_hours": 21,
     "max_concurrent_gpu_jobs": 3,
-    "plan": "docs/research_design_round_008.md",
+    "plan": "docs/research_design_round_009.md",
     "portfolio_candidates": [
-      "r015_role_prompt_standard",
-      "r015_dim_mrl_standard",
-      "r015_role_dim_mrl_standard"
+      "r016_qdoc_final_mean_pool_t3_neg3",
+      "r016_standard_seeded_sampling",
+      "r016_standard_inbatch_hybrid"
     ],
     "purpose": "dev",
-    "selected_batch": "batch_015_dev",
-    "selected_manifest": "experiments/batches/batch_015_dev.yaml",
-    "triggered_by": "batch_014_dev",
-    "workflow_gate": "real repo_auditor, literature_scout, experiment_planner, result_analyst, and code_risk_reviewer subagents completed; reports saved under docs/subagent_reports before validation/submission"
+    "selected_batch": "batch_016_dev",
+    "selected_manifest": "experiments/batches/batch_016_dev.yaml",
+    "triggered_by": "batch_015_dev",
+    "workflow_gate": "real repo_auditor, result_analyst, literature_scout, experiment_planner, and code_risk_reviewer subagents completed; reports saved under docs/subagent_reports; q/doc runtime high risk resolved by reducing train_sample_size to 12000"
   },
   "submitted_batches": [
     "batch_012_dev",
     "batch_013_dev",
     "batch_014_dev",
-    "batch_015_dev"
+    "batch_015_dev",
+    "batch_016_dev"
   ],
   "win_margin": 0.001
 }

@@ -166,9 +166,9 @@ def parse_args() -> argparse.Namespace:
     if args.label_smoothing < 0.0 or args.label_smoothing >= 1.0:
         raise ValueError("label_smoothing must be in [0, 1).")
     loss_type = version_spec.loss_type
-    if loss_type == "loopwise_inbatch_hybrid":
+    if loss_type in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
         if not args.use_inbatch:
-            print("Version uses loopwise_inbatch_hybrid; forcing use_inbatch=True.")
+            print(f"Version uses {loss_type}; forcing use_inbatch=True.")
         args.use_inbatch = True
     elif args.use_inbatch:
         print("use_inbatch=True was requested, but this version uses hard-negative loss only. Forcing use_inbatch=False.")
@@ -240,6 +240,15 @@ def select_loss(
     loss_type = get_version_spec(version).loss_type
     if loss_type == "standard":
         return standard_loss(q_loops[0], pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "standard_inbatch_hybrid":
+        return standard_loss(
+            q_loops[0],
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=True,
+            inbatch_weight=args.inbatch_weight,
+        )
     if loss_type == "standard_dim_mrl":
         return dimensional_matryoshka_retrieval_loss(
             q_loops[0],
@@ -252,6 +261,8 @@ def select_loss(
         )
     if loss_type == "final_loop":
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "final_loop_qdoc":
+        return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=False)
     if loss_type == "loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
     if loss_type == "loopwise_label_smoothed":
@@ -319,6 +330,8 @@ def encode_training_batch(
     batch: Dict[str, Any],
     version: str,
 ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+    if get_version_spec(version).loss_type == "final_loop_qdoc":
+        return encode_looped_doc_training_batch(model, batch)
     if not get_version_spec(version).is_standard_family:
         return model.forward_batch(batch["queries"], batch["positives"], batch["negatives"])
 
@@ -346,6 +359,44 @@ def encode_standard_training_batch(
     flat_negatives = [text for row in negatives for text in row]
     neg_emb = model.encode_docs(flat_negatives, batch_size=batch_size * num_negatives, device=device)
     return [q_emb], pos_emb, neg_emb.view(batch_size, num_negatives, -1)
+
+
+def encode_looped_doc_training_batch(
+    model: LoopMatryoshkaRetriever,
+    batch: Dict[str, Any],
+) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+    queries = batch["queries"]
+    positives = batch["positives"]
+    negatives = batch["negatives"]
+    if len(queries) != len(positives) or len(queries) != len(negatives):
+        raise ValueError("queries, positives, and negatives must have the same batch size.")
+    batch_size = len(queries)
+    num_negatives = len(negatives[0])
+    if any(len(row) != num_negatives for row in negatives):
+        raise ValueError("Every sample must have the same number of negatives.")
+
+    device = model._device()
+    q_stack = model.encode_queries(
+        queries,
+        batch_size=batch_size,
+        return_all_loops=True,
+        device=device,
+    )
+    q_loops = list(q_stack.unbind(dim=0))
+    pos_emb = model.encode_docs_looped(
+        positives,
+        batch_size=batch_size,
+        loop_idx=model.tmax,
+        device=device,
+    )
+    flat_negatives = [text for row in negatives for text in row]
+    neg_emb = model.encode_docs_looped(
+        flat_negatives,
+        batch_size=batch_size,
+        loop_idx=model.tmax,
+        device=device,
+    )
+    return q_loops, pos_emb, neg_emb.view(batch_size, num_negatives, -1)
 
 
 def run_sanity_checks(
@@ -379,7 +430,7 @@ def run_sanity_checks(
         raise AssertionError(f"neg_emb shape mismatch: got {tuple(neg_emb.shape)}.")
 
     loss_inbatch = loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))
-    if loss_type != "loopwise_inbatch_hybrid":
+    if loss_type not in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
         if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
             raise AssertionError("In-batch loss must be logged as 0.0 and excluded from this loss.")
 
@@ -387,6 +438,11 @@ def run_sanity_checks(
         dims = parse_matryoshka_dims(args.matryoshka_dims, model.embedding_dim)
         loop_loss_values = [loss_dict[f"loss_dim{dim}"] for dim in dims]
         expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type == "standard_inbatch_hybrid":
+        loss_hard = loss_dict.get("loss_hard")
+        if loss_hard is None or loss_inbatch is None:
+            raise AssertionError("Standard in-batch hybrid loss must log hard and in-batch terms.")
+        expected_loss = loss_hard + float(args.inbatch_weight) * loss_inbatch
     elif loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_label_smoothed"}:
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
         expected_loss = torch.stack(loop_loss_values).mean()
@@ -461,6 +517,7 @@ def log_row(
         row["training_stage"] = str(loss_dict["_training_stage"])
     if loss_type in {
         "standard_dim_mrl",
+        "standard_inbatch_hybrid",
         "loopwise",
         "two_stage_loopwise",
         "loopwise_inbatch_hybrid",
@@ -469,6 +526,7 @@ def log_row(
         "loopwise_sparse",
         "loopwise_tail_weighted",
         "loopwise_consistency",
+        "final_loop_qdoc",
     }:
         if loss_type == "standard_dim_mrl":
             dims = [int(dim) for dim in loss_dict["matryoshka_dims"].detach().cpu().tolist()]
@@ -477,12 +535,14 @@ def log_row(
                 key = f"loss_dim{dim}"
                 if key in loss_dict:
                     row[key] = tensor_to_float(loss_dict[key])
+        elif loss_type in {"standard_inbatch_hybrid", "final_loop_qdoc"}:
+            pass
         else:
             for idx in range(1, args.tmax + 1):
                 key = f"loss_t{idx}"
                 if key in loss_dict:
                     row[key] = tensor_to_float(loss_dict[key])
-    if loss_type == "loopwise_inbatch_hybrid":
+    if loss_type in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
         row["inbatch_weight"] = float(args.inbatch_weight)
     if loss_type == "loopwise_label_smoothed":
         row["label_smoothing"] = float(args.label_smoothing)
@@ -499,7 +559,7 @@ def log_row(
             row["loss_loopwise_base"] = tensor_to_float(loss_dict["loss_loopwise_base"])
         if "loop_consistency_loss" in loss_dict:
             row["loop_consistency_loss"] = tensor_to_float(loss_dict["loop_consistency_loss"])
-    if loss_type == "final_loop" and "final_loop_loss" in loss_dict:
+    if loss_type in {"final_loop", "final_loop_qdoc"} and "final_loop_loss" in loss_dict:
         row["final_loop_loss"] = tensor_to_float(loss_dict["final_loop_loss"])
     return row
 

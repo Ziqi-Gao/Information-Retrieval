@@ -1,0 +1,135 @@
+batch_id: batch_016_dev
+description: "Dev-only standalone portfolio testing q/doc loop symmetry, no-loop seeded sampling, and no-loop in-batch geometry."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 3
+  max_gpu_hours_estimate: 21
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r016_qdoc_final_mean_pool_t3_neg3
+    claim_track: standalone_main
+    hypothesis: "Looped document representations may reduce query/document geometry mismatch that repeatedly hurts FiQA2018 and SCIDOCS."
+    mechanism: "Train a reduced mean-pool loop candidate with looped queries and looped positives/negatives, then evaluate both query and corpus embeddings at loop 3 on every dev task."
+    expected_effect: "Tests q/doc symmetry as a broader standalone mechanism after first-token loop-memory and no-loop role/MRL local paths failed."
+    version: loop_final_qdoc_mean_pool
+    config: configs/goal_batch_016_qdoc_final_mean_pool_t3_neg3.yaml
+    eval_only: false
+    candidate_rule: "Train loop_final_qdoc_mean_pool with tmax=3, num_negatives=3, and train_sample_size=12000; evaluate loop_idx=3, loop_docs=true, doc_loop_idx=3 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "Looped document training may be too expensive or unstable even with reduced tmax and negatives."
+      - "q/doc symmetry may help SCIDOCS but still fail FiQA2018 or SciFact."
+      - "Reduced sample size may undertrain relative to the frozen baseline."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      loop_docs: true
+      doc_loop_idx: 3
+      candidate_loop_indices:
+        - 3
+    risk:
+      level: high
+      reason: "Doc-side loops multiply encoder work and may OOM or time out; the candidate is reduced to tmax=3, num_negatives=3, and train_sample_size=12000."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r016_standard_seeded_sampling
+    claim_track: standalone_main
+    hypothesis: "RLHN first-positive and first-negative ordering may be hurting transfer; no-loop seeded passage sampling isolates this data-order effect from loop memory."
+    mechanism: "Train a no-loop single-vector candidate with deterministic seeded positive and negative passage sampling, then evaluate loop_idx=1 globally."
+    expected_effect: "Tests sampling-order sensitivity outside first-token loop-memory and outside no-loop role/MRL mechanisms."
+    version: standard_seeded_sampling
+    config: configs/goal_batch_016_standard_seeded_sampling.yaml
+    eval_only: false
+    candidate_rule: "Train standard_seeded_sampling for one full epoch with deterministic seeded passage sampling; evaluate loop_idx=1 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "Seeded sampling may reproduce split behavior without fixing SciFact or FiQA2018."
+      - "No-loop training may remain too close to the frozen standard to produce robust positive deltas."
+      - "Randomized positives or negatives may harm NFCorpus or SCIDOCS positives."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: medium
+      reason: "Uses existing deterministic data sampling and no-loop candidate scoring; main risk is weak or split dev signal."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r016_standard_inbatch_hybrid
+    claim_track: standalone_main
+    hypothesis: "Candidate-only in-batch positive classification may improve no-loop embedding geometry enough to recover SciFact and FiQA2018 without role/MRL local tweaks."
+    mechanism: "Train a no-loop single-vector candidate with hard negatives plus a fixed-weight in-batch positive objective, then evaluate loop_idx=1 globally."
+    expected_effect: "Tests broader contrastive geometry rather than prefix wording, dimensional MRL lists, or loop-depth changes."
+    version: standard_inbatch_hybrid
+    config: configs/goal_batch_016_standard_inbatch_hybrid.yaml
+    eval_only: false
+    candidate_rule: "Train standard_inbatch_hybrid for one full epoch with inbatch_weight=0.25; evaluate loop_idx=1 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "In-batch positives may over-separate examples and hurt NFCorpus or SCIDOCS."
+      - "The objective may still fail to recover SciFact and FiQA2018."
+      - "The added in-batch term may be too weak to move the frozen-baseline comparison."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: medium
+      reason: "Adds only a candidate-internal training objective over existing batch positives; no new scorer, projection head, or baseline input is introduced."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

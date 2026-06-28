@@ -361,5 +361,6 @@ def standard_loss(
     neg_emb: torch.Tensor,
     tau: float = 0.05,
     use_inbatch: bool = False,
+    inbatch_weight: float = 1.0,
 ) -> Dict[str, torch.Tensor]:
-    return retrieval_loss(q_emb, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch)
+    return retrieval_loss(q_emb, pos_emb, neg_emb, tau=tau, use_inbatch=use_inbatch, inbatch_weight=inbatch_weight)

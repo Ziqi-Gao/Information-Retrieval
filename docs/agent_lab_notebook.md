@@ -670,7 +670,28 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
   - keeps one global candidate rule per run across all dev tasks;
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
-- Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
+- Code-risk reviewer found no protocol blocker, but flagged q/doc looped training runtime as high risk under the default Slurm train walltime.
+- Resolution: reduced q/doc training to `train_sample_size=12000` while keeping `tmax=3` and `num_negatives=3`.
+- Estimated GPU budget: 21 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_016_dev.yaml` passed with expected dev-only standalone warnings.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_016_dev.yaml --dry-run --submit-postprocess` passed and wrote `outputs/goal/runs/batch_016_dev/dry_run_plan.json`.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_016_dev.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - The first submit attempt failed before job creation because the cluster required site scheduler options.
+  - The sandboxed retry with site scheduler options failed before job creation because Slurm controller socket access is blocked inside the sandbox.
+  - The approved external retry through the same `goal_submit_batch.py` command succeeded with site scheduler options provided only through temporary environment variables.
+  - Train/eval job IDs:
+    - `r016_qdoc_final_mean_pool_t3_neg3`: train `5340269`, eval `5340270`
+    - `r016_standard_seeded_sampling`: train `5340271`, eval `5340272`
+    - `r016_standard_inbatch_hybrid`: train `5340273`, eval `5340274`
+  - Postprocess job ID: `5340275`
+  - Postprocess dependency: `afterany:5340270:5340272:5340274`
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_016_dev/scoreboard.json`.
 
 ## 2026-06-21 Batch 011 Dev Standalone Result
 
@@ -1170,3 +1191,69 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5330040`
   - Postprocess dependency: `afterany:5330035:5330037:5330039`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_015_dev/scoreboard.json`.
+
+## 2026-06-27 Batch 015 Dev Standalone Result
+
+- `batch_015_dev` completed Slurm-native postprocess:
+  - train/eval jobs:
+    - `r015_role_prompt_standard`: train `5330034`, eval `5330035`
+    - `r015_dim_mrl_standard`: train `5330036`, eval `5330037`
+    - `r015_role_dim_mrl_standard`: train `5330038`, eval `5330039`
+  - postprocess job: `5330040`
+  - marker: `outputs/goal/runs/batch_015_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_015_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- Local sandbox status refresh timed out after 120 seconds during Slurm querying. The same repository status command was rerun with external Slurm access and confirmed all train, eval, and postprocess jobs completed.
+- Batch purpose: `dev`; all three candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r015_role_dim_mrl_standard__loop1`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.00320`, `NFCorpus +0.00862`, `FiQA2018 -0.00255`, `SCIDOCS +0.00562`, min delta `-0.00320`, mean delta `+0.0021225`, dev tasks won/lost `2/2`, all success flags false.
+  - `r015_role_prompt_standard__loop1`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.00730`, `NFCorpus +0.00910`, `FiQA2018 -0.00714`, `SCIDOCS +0.00185`, min delta `-0.00730`, mean delta `-0.0008725`, dev tasks won/lost `2/2`, all success flags false.
+  - `r015_dim_mrl_standard__loop1`: `standalone_main`, purpose `dev`, dev deltas `SciFact -0.00966`, `NFCorpus +0.00040`, `FiQA2018 -0.00183`, `SCIDOCS +0.00132`, min delta `-0.00966`, mean delta `-0.0024425`, dev tasks won/lost `1/3`, all success flags false.
+- Decision: `main_goal_success=false`. Batch 015 was dev-only, evaluated only four dev tasks by design, and every candidate regressed `SciFact` and `FiQA2018`.
+- Batch 015 gives no strong viable global dev signal.
+- Mechanism-family assessment:
+  - First-token loop-memory standalone search remains exhausted.
+  - No-loop role prompting alone and no-loop dimensional MRL alone are not sufficient.
+  - No-loop role prompting plus dimensional MRL gives useful split-positive evidence on `NFCorpus` and `SCIDOCS`, but it is not globally viable and should not be followed by prefix wording or nearby MRL dimension sweeps.
+
+## 2026-06-27 Research Design Round 009 And Batch 016 Portfolio
+
+- Trigger: `batch_015_dev` completed Slurm-native postprocess with no viable standalone dev signal.
+- Repository subagent workflow gate was required by `docs/codex_subagents.md`.
+- Real read-only subagents were used:
+  - `repo_auditor`: `docs/subagent_reports/repo_auditor_round_009.md`
+  - `result_analyst`: `docs/subagent_reports/result_analyst_round_009.md`
+  - `literature_scout`: `docs/subagent_reports/literature_scout_round_009.md`
+  - `experiment_planner`: `docs/subagent_reports/experiment_planner_round_009.md`
+  - summary: `docs/subagent_reports/round_009_summary.md`
+- High-risk/blocker findings:
+  - `outputs/goal/state.json` and this notebook needed factual batch 015 completion updates before any next design.
+  - Batch 015 had no viable global dev signal and did not justify final validation.
+  - Further first-token loop-memory, role-prefix wording, or nearby MRL dimension/list sweeps are low-value.
+  - q/doc loop co-training is informative but higher risk for runtime/OOM; it should be reduced if selected.
+- Resolution:
+  - This notebook and `outputs/goal/state.json` were updated with factual batch 015 results before validation/submission.
+  - Entered `RESEARCH_DESIGN_MODE` before creating the next batch.
+  - Wrote the research plan at `docs/research_design_round_009.md`.
+- Broad standalone directions considered:
+  - query/document loop co-training;
+  - no-loop seeded passage sampling;
+  - no-loop candidate-only in-batch hybrid objective;
+  - length/truncation-aware document encoding;
+  - embedding norm/isotropy regularization;
+  - candidate-only sparse+dense hybrid;
+  - audited multi-source retrieval data mixture;
+  - standalone late interaction.
+- Selected portfolio for `batch_016_dev`:
+  - `r016_qdoc_final_mean_pool_t3_neg3`: q/doc mean-pool loop symmetry, `tmax=3`, `num_negatives=3`, final-loop candidate scoring with looped docs.
+  - `r016_standard_seeded_sampling`: no-loop standard candidate with deterministic seeded positive/negative passage sampling.
+  - `r016_standard_inbatch_hybrid`: no-loop standard candidate with candidate-only in-batch positive classification.
+- Portfolio rationale:
+  - all selected candidates are dev-only `standalone_main`;
+  - at least two candidates are outside exhausted first-token and no-loop role/MRL families;
+  - the q/doc candidate directly addresses recurring FiQA2018/SCIDOCS representation mismatch;
+  - the batch is not a local sweep because it does not vary first-token loop depth/loss, prefix wording, MRL dimensions, label smoothing, or frozen-standard scoring;
+  - uses only dev tasks: `SciFact`, `NFCorpus`, `FiQA2018`, and `SCIDOCS`;
+  - keeps one global candidate rule per run across all dev tasks;
+  - uses candidate-only scoring with no frozen-standard scoring input, frozen-standard embeddings, standard-score interpolation, or standard+candidate ensemble.
+- Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
