@@ -41,95 +41,66 @@
   ],
   "last_decision": {
     "batch_id": "batch_017_dev_repair",
-    "decided_at": "2026-06-28T19:15:52Z",
-    "decision": "Submitted a pure infrastructure repair for the failed r017_seeded_lexical_hash candidate. The repair preserves the original candidate rule and only fixes FiQA qrels cache/config disambiguation in eval_mteb.py.",
-    "source_failure": "outputs/goal/runs/batch_017_dev/scoreboard.json",
-    "repair_manifest": "experiments/batches/batch_017_dev_repair.yaml",
-    "job_ids": {
-      "r017_seeded_lexical_hash": {
-        "train": null,
-        "eval": "5385545"
-      },
-      "postprocess": "5385546"
-    },
-    "stop_condition": "repair submitted successfully"
+    "decided_at": "2026-06-28T19:30:05Z",
+    "decision": "batch_017_dev_repair completed. r017_seeded_lexical_hash__loop1 is a strong standalone_main dev signal: all four dev tasks completed and exceed +0.002, mean delta +0.0162525. main_goal_success remains false because purpose=dev and only 4/7 final tasks were evaluated. Do not submit final validation without explicit user approval.",
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "result_analyst_report": "docs/subagent_reports/result_analyst_round_011.md",
+    "next_step": "Prepare or submit final validation only after explicit user approval; final manifest must be purpose=final with all seven protocol tasks and allow_submit=false until approved."
   },
   "last_dev_result": {
-    "batch_id": "batch_017_dev",
-    "best_candidate_id": "r017_seeded_chunked_docs__loop1",
-    "best_candidate_track": "standalone_main",
-    "best_mean_delta": 0.0033774999999999986,
-    "best_min_delta": 0.00045000000000000595,
-    "candidates": [
-      {
-        "candidate_id": "r017_seeded_chunked_docs__loop1",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {
-          "FiQA2018": 0.0008599999999999719,
-          "NFCorpus": 0.00045000000000000595,
-          "SCIDOCS": 0.0038600000000000023,
-          "SciFact": 0.008340000000000014
-        },
-        "dev_tasks_lost": 2,
-        "dev_tasks_won": 2,
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": 0.0033774999999999986,
-        "min_delta": 0.00045000000000000595,
-        "minimal_positive_signal": false,
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r017_seeded_chunked_docs",
-        "status": "completed",
-        "tasks_lost": 5,
-        "tasks_valid": 4,
-        "tasks_won": 2
-      },
-      {
-        "candidate_id": "r017_seeded_lexical_hash__loop1",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {},
-        "dev_tasks_lost": 4,
-        "dev_tasks_won": 0,
-        "failure_reason": "missing results_summary.csv after FiQA2018 cache/config loading failure: multiple mteb/fiqa configurations in cache",
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": null,
-        "min_delta": null,
-        "minimal_positive_signal": false,
-        "partial_raw_dev_deltas_not_scoreboard_claim": {
-          "NFCorpus": 0.00968,
-          "SciFact": 0.03522
-        },
-        "partial_raw_dev_metrics_not_scoreboard_claim": {
-          "NFCorpus": 0.24817,
-          "SciFact": 0.57454
-        },
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r017_seeded_lexical_hash",
-        "status": "missing_result",
-        "tasks_lost": 7,
-        "tasks_valid": 0,
-        "tasks_won": 0
-      }
-    ],
-    "dev_tasks_valid": 4,
-    "evaluated_at": "2026-06-28T18:45:00Z",
-    "failure_pattern": "Chunked document aggregation reproduced the weak non-regressing r016 seeded-sampling pattern but stayed below weak diagnostic margin on NFCorpus and FiQA2018. Lexical-hash candidate failed for an infrastructure/data-cache issue before full dev coverage, so the candidate-only dense+lexical mechanism remains untested on all dev tasks.",
-    "fusion_diagnostic_pass": false,
-    "main_goal_success": false,
-    "mechanism_family_assessment": "First-token loop-memory, q/doc loop symmetry, role/MRL, and in-batch hybrid families remain exhausted. Length/truncation-aware doc encoding is not exhausted but this fixed chunking rule is too weak for final validation. Candidate-only dense+lexical hash is not exhausted because batch_017 had an infrastructure failure before full dev evaluation.",
-    "minimal_positive_signal": false,
+    "batch_id": "batch_017_dev_repair",
+    "purpose": "dev",
     "postprocess_done": true,
     "postprocess_failed": false,
-    "publishable_score_candidate": false,
-    "purpose": "dev",
+    "evaluated_at": "2026-06-28T19:20:38Z",
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "main_goal_success": false,
+    "minimal_positive_signal": false,
     "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_017_dev/scoreboard.json",
-    "strong_viable_global_dev_signal": false
+    "fusion_diagnostic_pass": false,
+    "publishable_score_candidate": false,
+    "strong_viable_global_dev_signal": true,
+    "dev_tasks_valid": 4,
+    "best_candidate_id": "r017_seeded_lexical_hash__loop1",
+    "best_candidate_track": "standalone_main",
+    "best_min_delta": 0.006649999999999989,
+    "best_mean_delta": 0.016252500000000003,
+    "candidates": [
+      {
+        "candidate_id": "r017_seeded_lexical_hash__loop1",
+        "run_id": "r017_seeded_lexical_hash",
+        "candidate_track": "standalone_main",
+        "purpose": "dev",
+        "status": "completed",
+        "dev_deltas": {
+          "SciFact": 0.03522000000000003,
+          "NFCorpus": 0.009679999999999994,
+          "SCIDOCS": 0.01346,
+          "FiQA2018": 0.006649999999999989
+        },
+        "candidate_values": {
+          "SciFact": 0.57454,
+          "NFCorpus": 0.24817,
+          "SCIDOCS": 0.15017,
+          "FiQA2018": 0.2652
+        },
+        "min_delta": 0.006649999999999989,
+        "mean_delta": 0.016252500000000003,
+        "dev_tasks_won": 4,
+        "dev_tasks_lost": 0,
+        "tasks_valid": 4,
+        "tasks_won": 4,
+        "tasks_lost": 3,
+        "tasks_at_main_margin": 4,
+        "minimal_positive_signal": false,
+        "research_grade_threshold_pass": false,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "publishable_score_candidate": false
+      }
+    ],
+    "failure_pattern": "No repair failure. Candidate-only lexical hash cleared all four evaluated dev tasks with deltas above +0.002 and macro mean above +0.005. Scoreboard success flags remain false because the batch is dev-only and lacks ArguAna, Touche2020, and TRECCOVID by design.",
+    "mechanism_family_assessment": "Candidate-only dense+lexical hash now has a strong viable global dev signal. This does not change exhaustion status for first-token loop-memory, q/doc loop symmetry, role/MRL, or in-batch hybrid families."
   },
   "last_final_validation": {
     "batch_id": "batch_003_final_repair",
@@ -150,19 +121,19 @@
     "tasks_won": 5
   },
   "last_postprocess_check": {
-    "batch_id": "batch_017_dev",
+    "batch_id": "batch_017_dev_repair",
+    "status": "completed",
     "postprocess_done": true,
-    "postprocess_done_path": "outputs/goal/runs/batch_017_dev/postprocess_done.json",
+    "postprocess_done_path": "outputs/goal/runs/batch_017_dev_repair/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_017_dev/scoreboard.json",
-    "status": "completed"
+    "scoreboard_json": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json"
   },
-  "last_scoreboard": "outputs/goal/runs/batch_017_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-28T18:54:18Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_017_dev --update-state",
-    "result": "Local status refresh hung inside Slurm squeue query for job 5383287 and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, and eval logs were used instead."
+    "attempted_at": "2026-06-28T19:30:05Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_017_dev_repair --update-state",
+    "result": "Local status refresh hung inside Slurm squeue query for job 5385545 and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, and Slurm logs were used instead."
   },
   "last_submission_attempts": {
     "batch_id": "batch_017_dev_repair",
@@ -171,19 +142,19 @@
   },
   "last_validation": {
     "batch_id": "batch_017_dev_repair",
-    "subagent_gate": "passed",
-    "repo_auditor": "docs/subagent_reports/repo_auditor_round_011.md",
-    "literature_scout": "docs/subagent_reports/literature_scout_round_011.md",
-    "experiment_planner": "docs/subagent_reports/experiment_planner_round_011.md",
     "code_risk_review": "docs/subagent_reports/code_risk_reviewer_round_011.md; no blockers or high-severity risks",
-    "subagent_summary": "docs/subagent_reports/round_011_summary.md",
-    "fiqa_loader_seam_test": "passed",
     "compileall_src_scripts": "passed",
-    "shell_syntax_scripts": "passed",
     "diff_check": "passed",
-    "manifest_validation": "passed_with_expected_dev_only_standalone_warning",
     "dry_run_submit_postprocess": "passed",
-    "preflight": "passed"
+    "experiment_planner": "docs/subagent_reports/experiment_planner_round_011.md",
+    "fiqa_loader_seam_test": "passed",
+    "literature_scout": "docs/subagent_reports/literature_scout_round_011.md",
+    "manifest_validation": "passed_with_expected_dev_only_standalone_warning",
+    "preflight": "passed",
+    "repo_auditor": "docs/subagent_reports/repo_auditor_round_011.md",
+    "shell_syntax_scripts": "passed",
+    "subagent_gate": "passed",
+    "subagent_summary": "docs/subagent_reports/round_011_summary.md"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -241,31 +212,49 @@
     "purpose": "dev",
     "uses_dev_tasks_only": true
   },
-  "next_required_action": "Wait for eval job 5385545 and Slurm postprocess job 5385546, then inspect outputs/goal/runs/batch_017_dev_repair/scoreboard.json.",
+  "next_required_action": "Strong viable dev signal found in batch_017_dev_repair. Do not submit final validation without explicit user approval; if approved, prepare a purpose=final all-seven-task manifest for the same predeclared lexical-hash candidate rule.",
   "open_jobs": [
     {
       "batch_id": "batch_017_dev_repair",
-      "depends_on": null,
-      "job_id": "5385545",
       "run_id": "r017_seeded_lexical_hash",
-      "status": "submitted",
-      "type": "eval"
+      "type": "eval",
+      "job_id": "5385545",
+      "status": "completed",
+      "raw_state": "COMPLETED",
+      "source": "postprocess_done+scoreboard"
     },
     {
       "batch_id": "batch_017_dev_repair",
-      "depends_on": "afterany:5385545",
-      "job_id": "5385546",
       "run_id": "batch_017_dev_repair",
-      "status": "submitted",
-      "type": "postprocess"
+      "type": "postprocess",
+      "job_id": "5385546",
+      "status": "completed",
+      "raw_state": "COMPLETED",
+      "source": "postprocess_done"
     }
   ],
-  "phase": "SUBMIT_BATCH",
+  "phase": "DECIDE_NEXT",
   "postprocess_job_id": "5385546",
   "primary_metric": "ndcg_at_10",
+  "repair": {
+    "batch_id": "batch_017_dev_repair",
+    "candidate_rule": "standard_seeded_sampling checkpoint outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final; loop_idx=1; lexical_hash_dim=1024; lexical_weight=0.15; tasks SciFact,NFCorpus,FiQA2018,SCIDOCS; candidate-only scoring",
+    "candidate_rule_preserved": true,
+    "eval_job_id": "5385545",
+    "failed_candidate": "r017_seeded_lexical_hash__loop1",
+    "manifest": "experiments/batches/batch_017_dev_repair.yaml",
+    "postprocess_job_id": "5385546",
+    "repair_of": "batch_017_dev",
+    "root_cause": "MTEB FiQA qrels load used config-less load_dataset while local cache contains queries/corpus/default; default is the qrels config.",
+    "submission_plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json",
+    "status": "completed",
+    "scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "strong_viable_global_dev_signal": true,
+    "main_goal_success": false
+  },
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "afbf484c1665d24421a41d238d87ada251958358",
+    "commit": "fd43455157e1dde754534d7bd32ad2e9138b5c7e",
     "dirty": true
   },
   "research_design_mode": {
@@ -303,17 +292,5 @@
     "batch_017_dev",
     "batch_017_dev_repair"
   ],
-  "win_margin": 0.001,
-  "repair": {
-    "batch_id": "batch_017_dev_repair",
-    "repair_of": "batch_017_dev",
-    "failed_candidate": "r017_seeded_lexical_hash__loop1",
-    "root_cause": "MTEB FiQA qrels load used config-less load_dataset while local cache contains queries/corpus/default; default is the qrels config.",
-    "candidate_rule_preserved": true,
-    "candidate_rule": "standard_seeded_sampling checkpoint outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final; loop_idx=1; lexical_hash_dim=1024; lexical_weight=0.15; tasks SciFact,NFCorpus,FiQA2018,SCIDOCS; candidate-only scoring",
-    "manifest": "experiments/batches/batch_017_dev_repair.yaml",
-    "submission_plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json",
-    "eval_job_id": "5385545",
-    "postprocess_job_id": "5385546"
-  }
+  "win_margin": 0.001
 }

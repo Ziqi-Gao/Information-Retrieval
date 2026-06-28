@@ -1064,6 +1064,26 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess dependency: `afterany:5385545`.
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_017_dev_repair/scoreboard.json`.
 
+## 2026-06-28 Batch 017 Dev Repair Result
+
+- `batch_017_dev_repair` completed Slurm-native postprocess:
+  - eval job: `r017_seeded_lexical_hash` eval `5385545`
+  - postprocess job: `5385546`
+  - marker: `outputs/goal/runs/batch_017_dev_repair/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_017_dev_repair/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local status refresh through `scripts/goal_status.py --batch-id batch_017_dev_repair --update-state` was attempted on 2026-06-28 and hung inside `squeue -j 5385545`; the parent killed the stuck status process and used deterministic evidence from `postprocess_done.json`, `collected_results.csv`, `scoreboard.csv`, `scoreboard.json`, `per_run_validation.json`, `submission_plan.json`, and Slurm logs.
+- Result analyst gate:
+  - `docs/subagent_reports/result_analyst_round_011.md`
+- Batch purpose: `dev`; candidate is `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r017_seeded_lexical_hash__loop1`: `standalone_main`, purpose `dev`, dev deltas `SciFact +0.03522`, `NFCorpus +0.00968`, `SCIDOCS +0.01346`, `FiQA2018 +0.00665`, min delta `+0.00665`, mean delta `+0.0162525`, evaluated dev tasks won/lost `4/0`, all four evaluated dev tasks exceed `+0.002`.
+  - Scoreboard totals remain `tasks_total=7`, `tasks_valid=4`, `tasks_lost=3` because final-only tasks `ArguAna`, `Touche2020`, and `TRECCOVID` were not evaluated in this dev repair.
+  - `minimal_positive_signal=false`, `research_grade_threshold_pass=false`, `fusion_diagnostic_pass=false`, `main_goal_success=false`, and `publishable_score_candidate=false` under scoreboard protocol because this is not a final seven-task batch.
+- Decision: `main_goal_success=false`. This was a dev repair batch and evaluated only four dev tasks by design.
+- Dev signal assessment: strong viable global dev signal. The repair candidate is candidate-only, has no frozen-standard fusion/interpolation, has no missing/failed/NaN/duplicate rows on the four dev tasks, and clears the `+0.002` task margin plus `+0.005` macro mean on every evaluated dev task.
+- Protocol next step: do not submit final validation without explicit user approval. A final validation plan would need `purpose: final`, all seven final tasks, the same predeclared global candidate rule, no fusion/standard-score input, and `allow_submit:false` until approved.
+
 ## 2026-06-21 Research Design Round 005 And Batch 012 Portfolio
 
 - Trigger: `batch_011_dev` completed Slurm-native postprocess with `postprocess_done.json` and no `postprocess_failed.json`.
