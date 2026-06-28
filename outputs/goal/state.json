@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_017_dev_repair",
+    "batch_id": "batch_018_final",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_017_dev_repair.yaml",
-    "plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json",
+    "manifest": "experiments/batches/batch_018_final.yaml",
+    "plan": "outputs/goal/runs/batch_018_final/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "5385546"
+    "postprocess_job_id": "5386593"
   },
   "final_tasks": [
     "SciFact",
@@ -43,64 +43,64 @@
     "batch_id": "batch_017_dev_repair",
     "decided_at": "2026-06-28T19:30:05Z",
     "decision": "batch_017_dev_repair completed. r017_seeded_lexical_hash__loop1 is a strong standalone_main dev signal: all four dev tasks completed and exceed +0.002, mean delta +0.0162525. main_goal_success remains false because purpose=dev and only 4/7 final tasks were evaluated. Do not submit final validation without explicit user approval.",
-    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "next_step": "Prepare or submit final validation only after explicit user approval; final manifest must be purpose=final with all seven protocol tasks and allow_submit=false until approved.",
     "result_analyst_report": "docs/subagent_reports/result_analyst_round_011.md",
-    "next_step": "Prepare or submit final validation only after explicit user approval; final manifest must be purpose=final with all seven protocol tasks and allow_submit=false until approved."
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json"
   },
   "last_dev_result": {
     "batch_id": "batch_017_dev_repair",
-    "purpose": "dev",
-    "postprocess_done": true,
-    "postprocess_failed": false,
-    "evaluated_at": "2026-06-28T19:20:38Z",
-    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
-    "main_goal_success": false,
-    "minimal_positive_signal": false,
-    "research_grade_threshold_pass": false,
-    "fusion_diagnostic_pass": false,
-    "publishable_score_candidate": false,
-    "strong_viable_global_dev_signal": true,
-    "dev_tasks_valid": 4,
     "best_candidate_id": "r017_seeded_lexical_hash__loop1",
     "best_candidate_track": "standalone_main",
-    "best_min_delta": 0.006649999999999989,
     "best_mean_delta": 0.016252500000000003,
+    "best_min_delta": 0.006649999999999989,
     "candidates": [
       {
         "candidate_id": "r017_seeded_lexical_hash__loop1",
-        "run_id": "r017_seeded_lexical_hash",
         "candidate_track": "standalone_main",
-        "purpose": "dev",
-        "status": "completed",
-        "dev_deltas": {
-          "SciFact": 0.03522000000000003,
-          "NFCorpus": 0.009679999999999994,
-          "SCIDOCS": 0.01346,
-          "FiQA2018": 0.006649999999999989
-        },
         "candidate_values": {
-          "SciFact": 0.57454,
+          "FiQA2018": 0.2652,
           "NFCorpus": 0.24817,
           "SCIDOCS": 0.15017,
-          "FiQA2018": 0.2652
+          "SciFact": 0.57454
         },
-        "min_delta": 0.006649999999999989,
-        "mean_delta": 0.016252500000000003,
-        "dev_tasks_won": 4,
+        "dev_deltas": {
+          "FiQA2018": 0.006649999999999989,
+          "NFCorpus": 0.009679999999999994,
+          "SCIDOCS": 0.01346,
+          "SciFact": 0.03522000000000003
+        },
         "dev_tasks_lost": 0,
-        "tasks_valid": 4,
-        "tasks_won": 4,
-        "tasks_lost": 3,
-        "tasks_at_main_margin": 4,
-        "minimal_positive_signal": false,
-        "research_grade_threshold_pass": false,
+        "dev_tasks_won": 4,
         "fusion_diagnostic_pass": false,
         "main_goal_success": false,
-        "publishable_score_candidate": false
+        "mean_delta": 0.016252500000000003,
+        "min_delta": 0.006649999999999989,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r017_seeded_lexical_hash",
+        "status": "completed",
+        "tasks_at_main_margin": 4,
+        "tasks_lost": 3,
+        "tasks_valid": 4,
+        "tasks_won": 4
       }
     ],
+    "dev_tasks_valid": 4,
+    "evaluated_at": "2026-06-28T19:20:38Z",
     "failure_pattern": "No repair failure. Candidate-only lexical hash cleared all four evaluated dev tasks with deltas above +0.002 and macro mean above +0.005. Scoreboard success flags remain false because the batch is dev-only and lacks ArguAna, Touche2020, and TRECCOVID by design.",
-    "mechanism_family_assessment": "Candidate-only dense+lexical hash now has a strong viable global dev signal. This does not change exhaustion status for first-token loop-memory, q/doc loop symmetry, role/MRL, or in-batch hybrid families."
+    "fusion_diagnostic_pass": false,
+    "main_goal_success": false,
+    "mechanism_family_assessment": "Candidate-only dense+lexical hash now has a strong viable global dev signal. This does not change exhaustion status for first-token loop-memory, q/doc loop symmetry, role/MRL, or in-batch hybrid families.",
+    "minimal_positive_signal": false,
+    "postprocess_done": true,
+    "postprocess_failed": false,
+    "publishable_score_candidate": false,
+    "purpose": "dev",
+    "research_grade_threshold_pass": false,
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "strong_viable_global_dev_signal": true
   },
   "last_final_validation": {
     "batch_id": "batch_003_final_repair",
@@ -122,12 +122,12 @@
   },
   "last_postprocess_check": {
     "batch_id": "batch_017_dev_repair",
-    "status": "completed",
     "postprocess_done": true,
     "postprocess_done_path": "outputs/goal/runs/batch_017_dev_repair/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json"
+    "scoreboard_json": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "status": "completed"
   },
   "last_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
   "last_status_attempt": {
@@ -212,29 +212,27 @@
     "purpose": "dev",
     "uses_dev_tasks_only": true
   },
-  "next_required_action": "Strong viable dev signal found in batch_017_dev_repair. Do not submit final validation without explicit user approval; if approved, prepare a purpose=final all-seven-task manifest for the same predeclared lexical-hash candidate rule.",
+  "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_017_dev_repair",
+      "batch_id": "batch_018_final",
+      "depends_on": null,
+      "job_id": "5386592",
       "run_id": "r017_seeded_lexical_hash",
-      "type": "eval",
-      "job_id": "5385545",
-      "status": "completed",
-      "raw_state": "COMPLETED",
-      "source": "postprocess_done+scoreboard"
+      "status": "submitted",
+      "type": "eval"
     },
     {
-      "batch_id": "batch_017_dev_repair",
-      "run_id": "batch_017_dev_repair",
-      "type": "postprocess",
-      "job_id": "5385546",
-      "status": "completed",
-      "raw_state": "COMPLETED",
-      "source": "postprocess_done"
+      "batch_id": "batch_018_final",
+      "depends_on": "afterany:5386592",
+      "job_id": "5386593",
+      "run_id": "batch_018_final",
+      "status": "submitted",
+      "type": "postprocess"
     }
   ],
-  "phase": "DECIDE_NEXT",
-  "postprocess_job_id": "5385546",
+  "phase": "SUBMIT_BATCH",
+  "postprocess_job_id": "5386593",
   "primary_metric": "ndcg_at_10",
   "repair": {
     "batch_id": "batch_017_dev_repair",
@@ -242,19 +240,19 @@
     "candidate_rule_preserved": true,
     "eval_job_id": "5385545",
     "failed_candidate": "r017_seeded_lexical_hash__loop1",
+    "main_goal_success": false,
     "manifest": "experiments/batches/batch_017_dev_repair.yaml",
     "postprocess_job_id": "5385546",
     "repair_of": "batch_017_dev",
     "root_cause": "MTEB FiQA qrels load used config-less load_dataset while local cache contains queries/corpus/default; default is the qrels config.",
-    "submission_plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json",
-    "status": "completed",
     "scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "status": "completed",
     "strong_viable_global_dev_signal": true,
-    "main_goal_success": false
+    "submission_plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json"
   },
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "fd43455157e1dde754534d7bd32ad2e9138b5c7e",
+    "commit": "8904fd54a303b4ea120d41c5ebca909e1de21273",
     "dirty": true
   },
   "research_design_mode": {

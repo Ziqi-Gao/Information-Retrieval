@@ -909,6 +909,49 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
 
+## 2026-06-28 Round 012 Approved Final Validation Plan
+
+- User approval was received to proceed from the strong `batch_017_dev_repair` dev signal to final validation.
+- This is not a new research batch and does not tune any rule using final-task deltas. No final-task result exists yet for this candidate.
+- Latest completed evidence:
+  - `batch_017_dev_repair` completed with `postprocess_done.json` and `scoreboard.json`.
+  - `r017_seeded_lexical_hash__loop1` is `standalone_main`, `purpose=dev`, and completed the four dev tasks with deltas `SciFact +0.03522`, `NFCorpus +0.00968`, `SCIDOCS +0.01346`, and `FiQA2018 +0.00665`.
+  - Dev min delta was `+0.00665`; dev mean delta was `+0.0162525`.
+  - `main_goal_success=false` because the repair batch was dev-only and omitted `ArguAna`, `Touche2020`, and `TRECCOVID`.
+- Repository subagent workflow gate was required by `docs/codex_subagents.md` and passed before validation/dry-run/preflight/submission:
+  - `repo_auditor`: `docs/subagent_reports/repo_auditor_round_012.md`
+  - `literature_scout`: `docs/subagent_reports/literature_scout_round_012.md`
+  - `experiment_planner`: `docs/subagent_reports/experiment_planner_round_012.md`
+  - `code_risk_reviewer`: `docs/subagent_reports/code_risk_reviewer_round_012.md`
+  - summary: `docs/subagent_reports/round_012_summary.md`
+- Blockers or high-risk findings: none. Residual risk is scientific transfer to the held-out final tasks, plus normal failure handling for missing/failed/duplicate/NaN/partial rows.
+- Final validation manifest created: `experiments/batches/batch_018_final.yaml`.
+- Final candidate rule:
+  - `run_id`: `r017_seeded_lexical_hash`
+  - `candidate_id`: `r017_seeded_lexical_hash__loop1`
+  - `claim_track`: `standalone_main`
+  - `purpose`: `final`
+  - `version`: `standard_seeded_sampling`
+  - checkpoint: `outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final`
+  - `loop_idx=1`, `candidate_loop_indices=[1]`, `lexical_hash_dim=1024`, `lexical_weight=0.15`
+  - candidate-only scoring using candidate dense embeddings plus deterministic lexical hash features.
+- Final task coverage is the exact protocol order: `SciFact`, `NFCorpus`, `SCIDOCS`, `FiQA2018`, `ArguAna`, `Touche2020`, `TRECCOVID`.
+- Budget: one eval-only candidate, `max_concurrent_gpu_jobs=1`, estimated `12` GPU hours against the configured `24` GPU-hour limit.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_018_final.yaml` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_018_final.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_018_final.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job ID: `5386592`.
+  - Postprocess job ID: `5386593`.
+  - Postprocess dependency: `afterany:5386592`.
+  - Submission plan: `outputs/goal/runs/batch_018_final/submission_plan.json`.
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_018_final/scoreboard.json`.
+
 ## 2026-06-28 Batch 016 Dev Standalone Result
 
 - `batch_016_dev` completed Slurm-native postprocess:
