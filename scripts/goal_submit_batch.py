@@ -330,6 +330,16 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
             eval_exports["SELF_QUERY_ALPHA"] = eval_settings.get("self_query_alpha")
         if eval_settings.get("self_query_source_loop") is not None:
             eval_exports["SELF_QUERY_SOURCE_LOOP"] = eval_settings.get("self_query_source_loop")
+        if eval_settings.get("doc_chunk_words") is not None:
+            eval_exports["DOC_CHUNK_WORDS"] = eval_settings.get("doc_chunk_words")
+        if eval_settings.get("doc_chunk_stride") is not None:
+            eval_exports["DOC_CHUNK_STRIDE"] = eval_settings.get("doc_chunk_stride")
+        if eval_settings.get("doc_chunk_max_chunks") is not None:
+            eval_exports["DOC_CHUNK_MAX_CHUNKS"] = eval_settings.get("doc_chunk_max_chunks")
+        if eval_settings.get("lexical_hash_dim") is not None:
+            eval_exports["LEXICAL_HASH_DIM"] = eval_settings.get("lexical_hash_dim")
+        if eval_settings.get("lexical_weight") is not None:
+            eval_exports["LEXICAL_WEIGHT"] = eval_settings.get("lexical_weight")
         if eval_settings.get("fusion_standard_checkpoint_dir") is not None:
             eval_exports["FUSION_STANDARD_CHECKPOINT_DIR"] = eval_settings.get("fusion_standard_checkpoint_dir")
         if eval_settings.get("fusion_alpha") is not None:

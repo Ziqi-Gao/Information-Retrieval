@@ -1,9 +1,12 @@
 import argparse
 import csv
+import hashlib
 import math
 from pathlib import Path
+import re
 from typing import Any, Dict, Iterable, List, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -112,6 +115,59 @@ def fusion_artifact_dir_name(scope: str, alpha: float) -> str:
     return "fusion_{}_a{}".format(scope, alpha_text)
 
 
+TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
+
+
+def eval_alpha_text(alpha: float) -> str:
+    return str(float(alpha)).replace(".", "p")
+
+
+def doc_chunk_artifact_dir_name(chunk_words: int, chunk_stride: int, max_chunks: int) -> str:
+    return "doc_chunks_w{}_s{}_m{}".format(int(chunk_words), int(chunk_stride), int(max_chunks))
+
+
+def lexical_artifact_dir_name(hash_dim: int, weight: float) -> str:
+    return "lexhash_d{}_a{}".format(int(hash_dim), eval_alpha_text(float(weight)))
+
+
+def split_word_chunks(text: str, chunk_words: int, chunk_stride: int, max_chunks: int) -> List[str]:
+    words = str(text or "").split()
+    if not words:
+        return [""]
+    if len(words) <= int(chunk_words):
+        return [" ".join(words)]
+
+    chunks: List[str] = []
+    start = 0
+    while start < len(words):
+        chunk = " ".join(words[start : start + int(chunk_words)]).strip()
+        if chunk:
+            chunks.append(chunk)
+        if start + int(chunk_words) >= len(words):
+            break
+        if int(max_chunks) > 0 and len(chunks) >= int(max_chunks):
+            break
+        start += int(chunk_stride)
+    return chunks or [" ".join(words[: int(chunk_words)])]
+
+
+def lexical_hash_features(texts: List[str], hash_dim: int) -> torch.Tensor:
+    features = np.zeros((len(texts), int(hash_dim)), dtype=np.float32)
+    for row_idx, text in enumerate(texts):
+        for token in TOKEN_RE.findall(str(text or "").lower()):
+            if len(token) < 2:
+                continue
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            value = int.from_bytes(digest, byteorder="little", signed=False)
+            col = value % int(hash_dim)
+            sign = -1.0 if (value >> 63) else 1.0
+            features[row_idx, col] += sign
+        norm = float(np.linalg.norm(features[row_idx]))
+        if norm > 0.0:
+            features[row_idx] /= norm
+    return torch.from_numpy(features)
+
+
 class LoopRetrieverMTEBWrapper:
     def __init__(
         self,
@@ -123,6 +179,11 @@ class LoopRetrieverMTEBWrapper:
         doc_loop_idx: Optional[int] = None,
         self_query_alpha: Optional[float] = None,
         self_query_source_loop: int = 1,
+        doc_chunk_words: int = 0,
+        doc_chunk_stride: int = 0,
+        doc_chunk_max_chunks: int = 0,
+        lexical_hash_dim: int = 0,
+        lexical_weight: float = 0.0,
     ) -> None:
         self.model = model
         self.loop_idx = loop_idx
@@ -132,6 +193,53 @@ class LoopRetrieverMTEBWrapper:
         self.doc_loop_idx = int(doc_loop_idx) if doc_loop_idx is not None else int(loop_idx)
         self.self_query_alpha = None if self_query_alpha is None else float(self_query_alpha)
         self.self_query_source_loop = int(self_query_source_loop)
+        self.doc_chunk_words = int(doc_chunk_words or 0)
+        self.doc_chunk_stride = int(doc_chunk_stride or self.doc_chunk_words or 0)
+        self.doc_chunk_max_chunks = int(doc_chunk_max_chunks or 0)
+        self.lexical_hash_dim = int(lexical_hash_dim or 0)
+        self.lexical_weight = float(lexical_weight or 0.0)
+
+    @property
+    def lexical_enabled(self) -> bool:
+        return self.lexical_hash_dim > 0 and self.lexical_weight > 0.0
+
+    @property
+    def doc_chunking_enabled(self) -> bool:
+        return self.doc_chunk_words > 0
+
+    def _combine_lexical(self, dense_emb: torch.Tensor, texts: List[str]) -> torch.Tensor:
+        if not self.lexical_enabled:
+            return dense_emb
+        lexical = lexical_hash_features(texts, self.lexical_hash_dim).to(dense_emb.device)
+        dense_weight = math.sqrt(max(0.0, 1.0 - self.lexical_weight))
+        lexical_weight = math.sqrt(self.lexical_weight)
+        combined = torch.cat([dense_emb * dense_weight, lexical * lexical_weight], dim=-1)
+        return F.normalize(combined, p=2, dim=-1)
+
+    def _encode_chunked_docs(self, texts: List[str], batch_size: int) -> torch.Tensor:
+        chunk_texts: List[str] = []
+        slices: List[tuple[int, int]] = []
+        for text in texts:
+            start = len(chunk_texts)
+            chunks = split_word_chunks(
+                text,
+                chunk_words=self.doc_chunk_words,
+                chunk_stride=self.doc_chunk_stride,
+                max_chunks=self.doc_chunk_max_chunks,
+            )
+            chunk_texts.extend(chunks)
+            slices.append((start, len(chunk_texts)))
+
+        chunk_emb = self.model.encode_docs(
+            chunk_texts,
+            batch_size=batch_size or self.batch_size,
+            device=self.device,
+        )
+        doc_embeddings = []
+        for start, end in slices:
+            pooled = chunk_emb[start:end].mean(dim=0)
+            doc_embeddings.append(F.normalize(pooled, p=2, dim=-1))
+        return torch.stack(doc_embeddings, dim=0)
 
     def encode_queries(self, queries, batch_size: int = 32, **kwargs):
         del kwargs
@@ -165,34 +273,30 @@ class LoopRetrieverMTEBWrapper:
                     p=2,
                     dim=-1,
                 )
+            query_emb = self._combine_lexical(query_emb, queries)
             return query_emb.detach().cpu().numpy()
 
     def encode_corpus(self, corpus, batch_size: int = 32, **kwargs):
         del kwargs
         texts = corpus_to_texts(corpus)
         with torch.no_grad():
-            if self.loop_docs:
-                return (
-                    self.model.encode_docs_looped(
-                        texts,
-                        batch_size=batch_size or self.batch_size,
-                        loop_idx=self.doc_loop_idx,
-                        device=self.device,
-                    )
-                    .detach()
-                    .cpu()
-                    .numpy()
+            if self.doc_chunking_enabled:
+                doc_emb = self._encode_chunked_docs(texts, batch_size=batch_size or self.batch_size)
+            elif self.loop_docs:
+                doc_emb = self.model.encode_docs_looped(
+                    texts,
+                    batch_size=batch_size or self.batch_size,
+                    loop_idx=self.doc_loop_idx,
+                    device=self.device,
                 )
-            return (
-                self.model.encode_docs(
+            else:
+                doc_emb = self.model.encode_docs(
                     texts,
                     batch_size=batch_size or self.batch_size,
                     device=self.device,
                 )
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            doc_emb = self._combine_lexical(doc_emb, texts)
+            return doc_emb.detach().cpu().numpy()
 
     def encode(self, sentences, batch_size: int = 32, **kwargs):
         return self.encode_queries(sentences, batch_size=batch_size, **kwargs)
@@ -291,6 +395,11 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
         "fusion_scope",
         "self_query_alpha",
         "self_query_source_loop",
+        "doc_chunk_words",
+        "doc_chunk_stride",
+        "doc_chunk_max_chunks",
+        "lexical_hash_dim",
+        "lexical_weight",
     ]
     acquire_file_lock(lock_path)
     try:
@@ -312,6 +421,11 @@ def append_summary_rows(output_dir: Path, rows: List[Dict[str, Any]]) -> None:
                 row.get("fusion_scope", ""),
                 str(row.get("self_query_alpha", "")),
                 str(row.get("self_query_source_loop", "")),
+                str(row.get("doc_chunk_words", "")),
+                str(row.get("doc_chunk_stride", "")),
+                str(row.get("doc_chunk_max_chunks", "")),
+                str(row.get("lexical_hash_dim", "")),
+                str(row.get("lexical_weight", "")),
             )
             deduped[key] = row
 
@@ -346,6 +460,13 @@ def evaluate_one_loop(
         artifact_dir = ensure_dir(artifact_dir / f"doc_loop{args.doc_loop_idx or loop_idx}")
     if args.self_query_alpha is not None:
         artifact_dir = ensure_dir(artifact_dir / self_query_artifact_dir_name(args.self_query_source_loop, args.self_query_alpha))
+    if args.doc_chunk_words:
+        artifact_dir = ensure_dir(
+            artifact_dir
+            / doc_chunk_artifact_dir_name(args.doc_chunk_words, args.doc_chunk_stride, args.doc_chunk_max_chunks)
+        )
+    if args.lexical_weight:
+        artifact_dir = ensure_dir(artifact_dir / lexical_artifact_dir_name(args.lexical_hash_dim, args.lexical_weight))
     if standard_model is not None:
         artifact_dir = ensure_dir(artifact_dir / fusion_artifact_dir_name(args.fusion_scope, args.fusion_alpha))
     if standard_model is not None:
@@ -368,6 +489,11 @@ def evaluate_one_loop(
             doc_loop_idx=args.doc_loop_idx,
             self_query_alpha=args.self_query_alpha,
             self_query_source_loop=args.self_query_source_loop,
+            doc_chunk_words=args.doc_chunk_words,
+            doc_chunk_stride=args.doc_chunk_stride,
+            doc_chunk_max_chunks=args.doc_chunk_max_chunks,
+            lexical_hash_dim=args.lexical_hash_dim,
+            lexical_weight=args.lexical_weight,
         )
     tasks = mteb.get_tasks(tasks=[task_name])
     assert_retrieval_tasks(tasks, task_name)
@@ -400,6 +526,11 @@ def evaluate_one_loop(
         "fusion_scope": args.fusion_scope if args.fusion_standard_checkpoint_dir else "",
         "self_query_alpha": "" if args.self_query_alpha is None else args.self_query_alpha,
         "self_query_source_loop": "" if args.self_query_alpha is None else args.self_query_source_loop,
+        "doc_chunk_words": "" if not args.doc_chunk_words else args.doc_chunk_words,
+        "doc_chunk_stride": "" if not args.doc_chunk_words else args.doc_chunk_stride,
+        "doc_chunk_max_chunks": "" if not args.doc_chunk_words else args.doc_chunk_max_chunks,
+        "lexical_hash_dim": "" if not args.lexical_weight else args.lexical_hash_dim,
+        "lexical_weight": "" if not args.lexical_weight else args.lexical_weight,
     }
 
 
@@ -419,6 +550,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--doc_loop_idx", type=int, default=None)
     parser.add_argument("--self_query_alpha", type=float, default=None)
     parser.add_argument("--self_query_source_loop", type=int, default=1)
+    parser.add_argument("--doc_chunk_words", type=int, default=0)
+    parser.add_argument("--doc_chunk_stride", type=int, default=0)
+    parser.add_argument("--doc_chunk_max_chunks", type=int, default=8)
+    parser.add_argument("--lexical_hash_dim", type=int, default=0)
+    parser.add_argument("--lexical_weight", type=float, default=0.0)
     parser.add_argument("--eval_all_loops", type=str2bool, default=False)
     parser.add_argument(
         "--fusion_standard_checkpoint_dir",
@@ -455,6 +591,10 @@ def main() -> None:
         raise ValueError("--fusion_standard_checkpoint_dir and --fusion_alpha must be provided together.")
     if args.fusion_standard_checkpoint_dir and args.self_query_alpha is not None:
         raise ValueError("--self_query_alpha cannot be combined with frozen-standard fusion.")
+    if args.fusion_standard_checkpoint_dir and (
+        args.doc_chunk_words or args.lexical_weight > 0.0 or args.lexical_hash_dim > 0
+    ):
+        raise ValueError("--doc_chunk_* and --lexical_* cannot be combined with frozen-standard fusion.")
     if not args.fusion_standard_checkpoint_dir and args.fusion_scope != "both":
         raise ValueError("--fusion_scope may only be set when fusion is enabled.")
     if args.fusion_alpha is not None and not 0.0 <= float(args.fusion_alpha) <= 1.0:
@@ -467,6 +607,22 @@ def main() -> None:
         raise ValueError("--self_query_alpha must be in [0, 1].")
     if args.self_query_source_loop <= 0:
         raise ValueError("--self_query_source_loop must be a positive integer.")
+    if args.doc_chunk_words < 0:
+        raise ValueError("--doc_chunk_words must be non-negative.")
+    if args.doc_chunk_words and args.loop_docs:
+        raise ValueError("--doc_chunk_words cannot be combined with --loop_docs.")
+    if args.doc_chunk_words and args.doc_chunk_stride <= 0:
+        args.doc_chunk_stride = args.doc_chunk_words
+    if args.doc_chunk_stride < 0:
+        raise ValueError("--doc_chunk_stride must be non-negative.")
+    if args.doc_chunk_max_chunks < 0:
+        raise ValueError("--doc_chunk_max_chunks must be non-negative.")
+    if args.lexical_hash_dim < 0:
+        raise ValueError("--lexical_hash_dim must be non-negative.")
+    if not 0.0 <= float(args.lexical_weight) <= 1.0:
+        raise ValueError("--lexical_weight must be in [0, 1].")
+    if args.lexical_weight > 0.0 and args.lexical_hash_dim <= 0:
+        raise ValueError("--lexical_hash_dim must be positive when --lexical_weight is positive.")
 
     model = load_model(args.checkpoint_dir, map_location="cpu").to(requested_device)
     model.eval()

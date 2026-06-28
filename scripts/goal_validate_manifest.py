@@ -216,6 +216,18 @@ def _validate_checkpoint_dir(
     return config
 
 
+def _int_or_none(value: Any) -> Optional[int]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if str(value).strip() not in {str(parsed), "+{}".format(parsed)}:
+        return None
+    return parsed
+
+
 def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None) -> Dict[str, Any]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -345,6 +357,29 @@ def validate_manifest_dict(manifest: Dict[str, Any], path: Optional[Path] = None
         eval_config = experiment.get("eval") or {}
         exp_tasks = parse_task_list(eval_config.get("task_names"))
         eval_only = _validate_bool_field(errors, experiment.get("eval_only"), "experiment {} eval_only".format(run_id or idx), default=False)
+        doc_chunk_words = _int_or_none(eval_config.get("doc_chunk_words"))
+        doc_chunk_stride = _int_or_none(eval_config.get("doc_chunk_stride"))
+        doc_chunk_max_chunks = _int_or_none(eval_config.get("doc_chunk_max_chunks"))
+        lexical_hash_dim = _int_or_none(eval_config.get("lexical_hash_dim"))
+        lexical_weight = metric_float(eval_config.get("lexical_weight"))
+        if eval_config.get("doc_chunk_words") is not None and (doc_chunk_words is None or doc_chunk_words < 0):
+            _add(errors, "experiment {} eval.doc_chunk_words must be a non-negative integer".format(run_id or idx))
+        if eval_config.get("doc_chunk_stride") is not None and (doc_chunk_stride is None or doc_chunk_stride < 0):
+            _add(errors, "experiment {} eval.doc_chunk_stride must be a non-negative integer".format(run_id or idx))
+        if eval_config.get("doc_chunk_max_chunks") is not None and (doc_chunk_max_chunks is None or doc_chunk_max_chunks < 0):
+            _add(errors, "experiment {} eval.doc_chunk_max_chunks must be a non-negative integer".format(run_id or idx))
+        if doc_chunk_words and strict_bool(eval_config.get("loop_docs"), default=False):
+            _add(errors, "experiment {} eval.doc_chunk_words cannot be combined with eval.loop_docs".format(run_id or idx))
+        if eval_config.get("lexical_hash_dim") is not None and (lexical_hash_dim is None or lexical_hash_dim < 0):
+            _add(errors, "experiment {} eval.lexical_hash_dim must be a non-negative integer".format(run_id or idx))
+        if eval_config.get("lexical_weight") is not None and (lexical_weight is None or lexical_weight < 0.0 or lexical_weight > 1.0):
+            _add(errors, "experiment {} eval.lexical_weight must be in [0, 1]".format(run_id or idx))
+        if lexical_weight and lexical_weight > 0.0 and not lexical_hash_dim:
+            _add(errors, "experiment {} eval.lexical_hash_dim must be positive when eval.lexical_weight is positive".format(run_id or idx))
+        if (doc_chunk_words or (lexical_weight and lexical_weight > 0.0) or lexical_hash_dim) and _present(
+            eval_config.get("fusion_standard_checkpoint_dir")
+        ):
+            _add(errors, "experiment {} eval.doc_chunk_* and eval.lexical_* cannot be combined with frozen-standard fusion".format(run_id or idx))
         explicit_track = explicit_claim_track(experiment)
         if explicit_track == "__conflicting__":
             _add(errors, "experiment {} claim_track and candidate_track conflict".format(run_id or idx))

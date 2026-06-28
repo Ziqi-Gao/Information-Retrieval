@@ -35,6 +35,11 @@ COLLECT_COLUMNS = [
     "fusion_scope",
     "self_query_alpha",
     "self_query_source_loop",
+    "doc_chunk_words",
+    "doc_chunk_stride",
+    "doc_chunk_max_chunks",
+    "lexical_hash_dim",
+    "lexical_weight",
     "source_summary",
 ]
 
@@ -165,6 +170,11 @@ def collect_experiment(batch_id: str, eval_root: Path, manifest: Dict[str, Any],
                 "fusion_scope": raw.get("fusion_scope", ""),
                 "self_query_alpha": raw.get("self_query_alpha", ""),
                 "self_query_source_loop": raw.get("self_query_source_loop", ""),
+                "doc_chunk_words": raw.get("doc_chunk_words", ""),
+                "doc_chunk_stride": raw.get("doc_chunk_stride", ""),
+                "doc_chunk_max_chunks": raw.get("doc_chunk_max_chunks", ""),
+                "lexical_hash_dim": raw.get("lexical_hash_dim", ""),
+                "lexical_weight": raw.get("lexical_weight", ""),
                 "source_summary": str(summary_path),
             }
         )
