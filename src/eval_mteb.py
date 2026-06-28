@@ -132,37 +132,86 @@ def lexical_artifact_dir_name(hash_dim: int, weight: float) -> str:
     return "lexhash_d{}_a{}".format(int(hash_dim), eval_alpha_text(float(weight)))
 
 
-def patch_mteb_fiqa_qrels_loader() -> None:
-    """Select the explicit FiQA qrels config when MTEB falls back to local cache.
+def patch_mteb_cached_retrieval_loader() -> None:
+    """Prefer explicit cached MTEB retrieval configs before remote resolution.
 
-    MTEB 1.39.7 loads FiQA corpus and queries with explicit configs but loads
-    qrels from ``mteb/fiqa`` without a config. In offline/cache fallback mode,
-    Hugging Face datasets then sees the cached ``corpus``, ``queries``, and
-    ``default`` configs and raises an ambiguity error. The ``default`` config is
-    the FiQA qrels table, so this patch only disambiguates data loading and does
-    not alter scoring, metrics, model embeddings, or candidate rules.
+    MTEB's BEIR-style retrieval loader reads ``corpus`` and ``queries`` through
+    explicit configs but reads qrels without a config. On the cluster, datasets
+    may try to resolve Hub-side JSONL files even when the Arrow cache already
+    contains the three retrieval configs. This patch disambiguates local
+    ``mteb/*`` cache loading for ``corpus``, ``queries``, and qrels ``default``.
+    It preserves MTEB's schema normalization and does not alter scoring,
+    metrics, model embeddings, ranking, thresholds, or candidate rules.
     """
     try:
-        from datasets import Features, Value, load_dataset
+        from datasets import DownloadConfig, Features, Value, load_dataset
         from mteb.abstasks.AbsTaskRetrieval import HFDataLoader
     except Exception as exc:  # pragma: no cover - depends on optional eval deps
-        LOGGER.debug("Skipping FiQA qrels loader patch: %s", exc)
+        LOGGER.debug("Skipping cached MTEB retrieval loader patch: %s", exc)
         return
 
-    if getattr(HFDataLoader, "_loopmat_fiqa_qrels_default_patch", False):
+    if getattr(HFDataLoader, "_loopmat_cached_retrieval_patch", False):
         return
 
+    original_load_corpus = HFDataLoader._load_corpus
+    original_load_queries = HFDataLoader._load_queries
     original_load_qrels = HFDataLoader._load_qrels
 
-    def _load_qrels_with_fiqa_default(self, split):
-        if getattr(self, "hf_repo_qrels", None) == "mteb/fiqa":
-            qrels_ds = load_dataset(
-                self.hf_repo_qrels,
-                "default",
-                keep_in_memory=self.keep_in_memory,
-                streaming=self.streaming,
-                trust_remote_code=self.trust_remote_code,
-            )[split]
+    def _is_mteb_repo(repo: Optional[str]) -> bool:
+        return isinstance(repo, str) and repo.startswith("mteb/")
+
+    def _load_mteb_config(self, repo: str, config: str):
+        common_kwargs = {
+            "keep_in_memory": self.keep_in_memory,
+            "streaming": self.streaming,
+            "trust_remote_code": self.trust_remote_code,
+        }
+        try:
+            return load_dataset(
+                repo,
+                config,
+                download_config=DownloadConfig(local_files_only=True),
+                **common_kwargs,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "Local cached MTEB load failed for %s/%s (%s); falling back to datasets default resolution.",
+                repo,
+                config,
+                exc,
+            )
+            return load_dataset(repo, config, **common_kwargs)
+
+    def _load_corpus_with_cached_config(self):
+        repo = getattr(self, "hf_repo", None)
+        if _is_mteb_repo(repo):
+            corpus_ds = _load_mteb_config(self, repo, "corpus")
+            corpus_ds = next(iter(corpus_ds.values()))
+            corpus_ds = corpus_ds.cast_column("_id", Value("string"))
+            corpus_ds = corpus_ds.rename_column("_id", "id")
+            corpus_ds = corpus_ds.remove_columns(
+                [col for col in corpus_ds.column_names if col not in ["id", "text", "title"]]
+            )
+            self.corpus = corpus_ds
+            return
+        return original_load_corpus(self)
+
+    def _load_queries_with_cached_config(self):
+        repo = getattr(self, "hf_repo", None)
+        if _is_mteb_repo(repo):
+            queries_ds = _load_mteb_config(self, repo, "queries")
+            queries_ds = next(iter(queries_ds.values()))
+            queries_ds = queries_ds.cast_column("_id", Value("string"))
+            queries_ds = queries_ds.rename_column("_id", "id")
+            queries_ds = queries_ds.remove_columns([col for col in queries_ds.column_names if col not in ["id", "text"]])
+            self.queries = queries_ds
+            return
+        return original_load_queries(self)
+
+    def _load_qrels_with_default_config(self, split):
+        repo = getattr(self, "hf_repo_qrels", None)
+        if _is_mteb_repo(repo):
+            qrels_ds = _load_mteb_config(self, repo, "default")[split]
             features = Features(
                 {
                     "query-id": Value("string"),
@@ -174,8 +223,15 @@ def patch_mteb_fiqa_qrels_loader() -> None:
             return
         return original_load_qrels(self, split)
 
-    HFDataLoader._load_qrels = _load_qrels_with_fiqa_default
-    HFDataLoader._loopmat_fiqa_qrels_default_patch = True
+    HFDataLoader._load_corpus = _load_corpus_with_cached_config
+    HFDataLoader._load_queries = _load_queries_with_cached_config
+    HFDataLoader._load_qrels = _load_qrels_with_default_config
+    HFDataLoader._loopmat_cached_retrieval_patch = True
+
+
+def patch_mteb_fiqa_qrels_loader() -> None:
+    """Backward-compatible wrapper for the generalized cached loader patch."""
+    patch_mteb_cached_retrieval_loader()
 
 
 def split_word_chunks(text: str, chunk_words: int, chunk_stride: int, max_chunks: int) -> List[str]:

@@ -23,12 +23,12 @@
     "max_gpu_hours_per_batch": 24.0
   },
   "current_batch": {
-    "batch_id": "batch_018_final",
+    "batch_id": "batch_018_final_repair",
     "dry_run": false,
-    "manifest": "experiments/batches/batch_018_final.yaml",
-    "plan": "outputs/goal/runs/batch_018_final/submission_plan.json",
+    "manifest": "experiments/batches/batch_018_final_repair.yaml",
+    "plan": "outputs/goal/runs/batch_018_final_repair/submission_plan.json",
     "postprocess": true,
-    "postprocess_job_id": "5386593"
+    "postprocess_job_id": "5389900"
   },
   "final_tasks": [
     "SciFact",
@@ -103,58 +103,58 @@
     "strong_viable_global_dev_signal": true
   },
   "last_final_validation": {
-    "batch_id": "batch_003_final_repair",
-    "candidate_id": "r003_final_query_loop_matryoshka_t3_a20__loop3",
-    "candidate_track": "fusion_diagnostic",
-    "evaluated_at": "2026-06-20T05:20:46Z",
+    "batch_id": "batch_018_final",
+    "candidate_id": "r017_seeded_lexical_hash__loop1",
+    "candidate_track": "standalone_main",
+    "evaluated_at": "2026-06-28T20:01:52Z",
+    "failure_reasons": "all seven final rows collected as missing_result because results_summary.csv was not written after ArguAna dataset loading failed",
     "fusion_diagnostic_pass": false,
     "main_goal_success": false,
-    "mean_delta": 0.0026414285714285684,
-    "min_delta": -0.00045000000000000595,
+    "mean_delta": null,
+    "min_delta": null,
     "minimal_positive_signal": false,
-    "regressions": [
-      "Touche2020"
-    ],
-    "tasks_at_main_margin": 2,
-    "tasks_lost": 2,
-    "tasks_valid": 7,
-    "tasks_won": 5
+    "regressions": [],
+    "scoreboard": "outputs/goal/runs/batch_018_final/scoreboard.json",
+    "tasks_at_main_margin": 0,
+    "tasks_lost": 7,
+    "tasks_valid": 0,
+    "tasks_won": 0
   },
   "last_postprocess_check": {
-    "batch_id": "batch_017_dev_repair",
+    "batch_id": "batch_018_final",
     "postprocess_done": true,
-    "postprocess_done_path": "outputs/goal/runs/batch_017_dev_repair/postprocess_done.json",
+    "postprocess_done_path": "outputs/goal/runs/batch_018_final/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "scoreboard_json": "outputs/goal/runs/batch_018_final/scoreboard.json",
     "status": "completed"
   },
-  "last_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_018_final/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-28T19:30:05Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_017_dev_repair --update-state",
-    "result": "Local status refresh hung inside Slurm squeue query for job 5385545 and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, and Slurm logs were used instead."
+    "attempted_at": "2026-06-28T20:58:30Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_018_final --update-state",
+    "result": "Local status refresh hung during Slurm querying and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, Slurm logs, and sacct evidence were used instead."
   },
   "last_submission_attempts": {
-    "batch_id": "batch_017_dev_repair",
+    "batch_id": "batch_018_final_repair",
     "final_attempt": "submitted_via_goal_submit_batch_with_submit_postprocess",
     "scheduler_args": "site scheduler options supplied via temporary environment only"
   },
   "last_validation": {
-    "batch_id": "batch_017_dev_repair",
-    "code_risk_review": "docs/subagent_reports/code_risk_reviewer_round_011.md; no blockers or high-severity risks",
+    "batch_id": "batch_018_final_repair",
+    "code_risk_review": "docs/subagent_reports/code_risk_reviewer_round_013.md; no blockers or high-severity risks",
     "compileall_src_scripts": "passed",
     "diff_check": "passed",
     "dry_run_submit_postprocess": "passed",
-    "experiment_planner": "docs/subagent_reports/experiment_planner_round_011.md",
-    "fiqa_loader_seam_test": "passed",
-    "literature_scout": "docs/subagent_reports/literature_scout_round_011.md",
-    "manifest_validation": "passed_with_expected_dev_only_standalone_warning",
+    "experiment_planner": "docs/subagent_reports/experiment_planner_round_013.md",
+    "loader_seam_test": "passed for mteb/arguana, mteb/fiqa, mteb/touche2020, and mteb/trec-covid",
+    "literature_scout": "docs/subagent_reports/literature_scout_round_013.md",
+    "manifest_validation": "passed",
     "preflight": "passed",
-    "repo_auditor": "docs/subagent_reports/repo_auditor_round_011.md",
+    "repo_auditor": "docs/subagent_reports/repo_auditor_round_013.md",
     "shell_syntax_scripts": "passed",
     "subagent_gate": "passed",
-    "subagent_summary": "docs/subagent_reports/round_011_summary.md"
+    "subagent_summary": "docs/subagent_reports/round_013_summary.md"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -215,44 +215,42 @@
   "next_required_action": "Wait for eval jobs and the Slurm postprocess job, then inspect the scoreboard.",
   "open_jobs": [
     {
-      "batch_id": "batch_018_final",
+      "batch_id": "batch_018_final_repair",
       "depends_on": null,
-      "job_id": "5386592",
+      "job_id": "5389899",
       "run_id": "r017_seeded_lexical_hash",
       "status": "submitted",
       "type": "eval"
     },
     {
-      "batch_id": "batch_018_final",
-      "depends_on": "afterany:5386592",
-      "job_id": "5386593",
-      "run_id": "batch_018_final",
+      "batch_id": "batch_018_final_repair",
+      "depends_on": "afterany:5389899",
+      "job_id": "5389900",
+      "run_id": "batch_018_final_repair",
       "status": "submitted",
       "type": "postprocess"
     }
   ],
   "phase": "SUBMIT_BATCH",
-  "postprocess_job_id": "5386593",
+  "postprocess_job_id": "5389900",
   "primary_metric": "ndcg_at_10",
   "repair": {
-    "batch_id": "batch_017_dev_repair",
-    "candidate_rule": "standard_seeded_sampling checkpoint outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final; loop_idx=1; lexical_hash_dim=1024; lexical_weight=0.15; tasks SciFact,NFCorpus,FiQA2018,SCIDOCS; candidate-only scoring",
+    "batch_id": "batch_018_final_repair",
+    "candidate_rule": "standard_seeded_sampling checkpoint outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final; loop_idx=1; lexical_hash_dim=1024; lexical_weight=0.15; all seven final tasks; candidate-only scoring",
     "candidate_rule_preserved": true,
-    "eval_job_id": "5385545",
+    "eval_job_id": "5389899",
     "failed_candidate": "r017_seeded_lexical_hash__loop1",
     "main_goal_success": false,
-    "manifest": "experiments/batches/batch_017_dev_repair.yaml",
-    "postprocess_job_id": "5385546",
-    "repair_of": "batch_017_dev",
-    "root_cause": "MTEB FiQA qrels load used config-less load_dataset while local cache contains queries/corpus/default; default is the qrels config.",
-    "scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
-    "status": "completed",
-    "strong_viable_global_dev_signal": true,
-    "submission_plan": "outputs/goal/runs/batch_017_dev_repair/submission_plan.json"
+    "manifest": "experiments/batches/batch_018_final_repair.yaml",
+    "postprocess_job_id": "5389900",
+    "repair_of": "batch_018_final",
+    "root_cause": "MTEB/HF datasets attempted to resolve mteb/arguana remote corpus.jsonl despite local corpus/queries/default Arrow cache; eval failed before results_summary.csv was written.",
+    "status": "submitted",
+    "submission_plan": "outputs/goal/runs/batch_018_final_repair/submission_plan.json"
   },
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "8904fd54a303b4ea120d41c5ebca909e1de21273",
+    "commit": "db3b686a0e505319437e41e207678d4861cd2d18",
     "dirty": true
   },
   "research_design_mode": {

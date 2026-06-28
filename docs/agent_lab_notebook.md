@@ -909,6 +909,49 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - uses no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring.
 - Estimated GPU budget: 24 GPU hours against the configured 24 GPU-hour limit, with at most 3 concurrent GPU jobs.
 
+## 2026-06-28 Round 013 Batch 018 Final Repair Submission
+
+- Trigger: `batch_018_final` postprocess completed, but eval job `5386592` failed during `ArguAna` data loading. `scoreboard.json` reported `tasks_valid=0/7` and `main_goal_success=false` because no top-level `results_summary.csv` was written.
+- Root cause: MTEB/HF datasets attempted to resolve `mteb/arguana` remote `corpus.jsonl` even though local Arrow cache had explicit `corpus`, `queries`, and `default` configs. This was a cache/config loader issue, not a candidate-scoring or metric issue.
+- Partial raw outputs from `batch_018_final` were not backfilled and were not interpreted as final results.
+- Repository subagent workflow gate was required by `docs/codex_subagents.md` and passed before validation/dry-run/preflight/submission:
+  - `repo_auditor`: `docs/subagent_reports/repo_auditor_round_013.md`
+  - `literature_scout`: `docs/subagent_reports/literature_scout_round_013.md`
+  - `experiment_planner`: `docs/subagent_reports/experiment_planner_round_013.md`
+  - `code_risk_reviewer`: `docs/subagent_reports/code_risk_reviewer_round_013.md`
+  - summary: `docs/subagent_reports/round_013_summary.md`
+- Fix:
+  - `src/eval_mteb.py` now applies a guarded cached MTEB retrieval loader patch for `mteb/*` repos.
+  - The patch loads explicit cached configs for `corpus`, `queries`, and qrels `default`, preserves MTEB schema normalization, and falls back to datasets default resolution if local cache loading fails.
+  - It does not change metric parsing, NDCG semantics, embedding generation, lexical hashing, ranking, thresholds, baseline comparison, or candidate scoring.
+- Loader seam test:
+  - `HFDataLoader(hf_repo=...).load("test")` passed for `mteb/arguana`, `mteb/fiqa`, `mteb/touche2020`, and `mteb/trec-covid`.
+- Repair manifest: `experiments/batches/batch_018_final_repair.yaml`.
+- Candidate rule preserved:
+  - `run_id`: `r017_seeded_lexical_hash`
+  - `candidate_id`: `r017_seeded_lexical_hash__loop1`
+  - `claim_track`: `standalone_main`
+  - `purpose`: `final`
+  - `version`: `standard_seeded_sampling`
+  - checkpoint: `outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final`
+  - `loop_idx=1`, `candidate_loop_indices=[1]`, `lexical_hash_dim=1024`, `lexical_weight=0.15`
+  - candidate-only scoring using candidate dense embeddings plus deterministic lexical hash features.
+- Final task coverage is unchanged and in protocol order: `SciFact`, `NFCorpus`, `SCIDOCS`, `FiQA2018`, `ArguAna`, `Touche2020`, `TRECCOVID`.
+- Checks before submission:
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" -m compileall src scripts` passed.
+  - `bash -n scripts/*.sh scripts/*.sbatch` passed.
+  - `git diff --check` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_validate_manifest.py experiments/batches/batch_018_final_repair.yaml` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_submit_batch.py experiments/batches/batch_018_final_repair.yaml --dry-run --submit-postprocess` passed.
+  - `source scripts/slurm_env.sh && "$PYTHON_BIN" scripts/goal_preflight.py --manifest experiments/batches/batch_018_final_repair.yaml` passed.
+- Submission:
+  - Submitted only through `scripts/goal_submit_batch.py --submit --submit-postprocess`.
+  - Eval job ID: `5389899`.
+  - Postprocess job ID: `5389900`.
+  - Postprocess dependency: `afterany:5389899`.
+  - Submission plan: `outputs/goal/runs/batch_018_final_repair/submission_plan.json`.
+- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_018_final_repair/scoreboard.json`.
+
 ## 2026-06-28 Round 012 Approved Final Validation Plan
 
 - User approval was received to proceed from the strong `batch_017_dev_repair` dev signal to final validation.

@@ -1,0 +1,74 @@
+batch_id: batch_018_final_repair
+description: "Repair final validation rerun for the batch_018 lexical-hash candidate after ArguAna cache/config loading failure."
+created_by: codex
+purpose: final
+repair: true
+repair_of: batch_018_final
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 1
+  max_gpu_hours_estimate: 12
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r017_seeded_lexical_hash
+    claim_track: standalone_main
+    hypothesis: "Dense single-vector scoring may miss exact term and entity matches needed by retrieval tasks with entity-heavy queries and documents."
+    mechanism: "Repair rerun of the deterministic candidate-only lexical hashing evaluation after an ArguAna dataset cache/config loading failure."
+    expected_effect: "Measures whether the same global sparse+dense retrieval signal transfers from the dev tasks to all seven protocol final tasks."
+    version: standard_seeded_sampling
+    eval_only: true
+    candidate_rule: "Use the r016_standard_seeded_sampling checkpoint; evaluate loop_idx=1 globally with lexical_hash_dim=1024 and lexical_weight=0.15, using candidate dense embeddings plus deterministic lexical hash features only."
+    expected_failure_modes:
+      - "The fixed lexical weight may overemphasize term overlap and hurt semantic matching."
+      - "Held-out final tasks may not benefit from lexical hashing."
+      - "Large final corpora may expose runtime or cache sensitivity."
+      - "Any missing, invalid, duplicate, partial, or NaN final-task result invalidates the candidate."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - SCIDOCS
+        - FiQA2018
+        - ArguAna
+        - Touche2020
+        - TRECCOVID
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+      lexical_hash_dim: 1024
+      lexical_weight: 0.15
+    risk:
+      level: medium
+      reason: "Pure infrastructure repair of the final eval-only standalone candidate; candidate scoring rule is unchanged from batch_018_final."
+    estimated_gpu_hours: 12
+    fallback: "If any final task fails or falls below the margin, do not make a final claim; return to dev-only analysis with a new predeclared hypothesis."
