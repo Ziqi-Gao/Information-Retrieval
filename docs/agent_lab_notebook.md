@@ -1001,6 +1001,34 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess dependency: `afterany:5383287:5383288`
 - Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_017_dev/scoreboard.json`.
 
+## 2026-06-28 Batch 017 Dev Standalone Result And Failure Diagnosis
+
+- `batch_017_dev` completed Slurm-native postprocess:
+  - eval jobs:
+    - `r017_seeded_chunked_docs`: eval `5383287`
+    - `r017_seeded_lexical_hash`: eval `5383288`
+  - postprocess job: `5383289`
+  - marker: `outputs/goal/runs/batch_017_dev/postprocess_done.json`
+  - scoreboard: `outputs/goal/runs/batch_017_dev/scoreboard.json`
+- There is no `postprocess_failed.json`.
+- A local status refresh through `scripts/goal_status.py --batch-id batch_017_dev --update-state` was attempted on 2026-06-28 and hung inside `squeue -j 5383287`; the parent killed the stuck status process and used deterministic evidence from `postprocess_done.json`, `collected_results.csv`, `scoreboard.csv`, `scoreboard.json`, `per_run_validation.json`, `submission_plan.json`, and Slurm eval logs.
+- Batch purpose: `dev`; both candidates are `standalone_main` exploration only, so this batch cannot trigger `main_goal_success`.
+- Scoreboard interpretation under the current claim-track policy:
+  - `r017_seeded_chunked_docs__loop1`: `standalone_main`, purpose `dev`, dev deltas `SciFact +0.00834`, `NFCorpus +0.00045`, `SCIDOCS +0.00386`, `FiQA2018 +0.00086`, min delta `+0.00045`, mean delta `+0.0033775`, observed dev tasks non-regressing but only 2/4 reach `+0.002` and 2/4 are below weak diagnostic `+0.001`; all success flags false.
+  - `r017_seeded_lexical_hash__loop1`: `standalone_main`, purpose `dev`, scoreboard status `missing_result` for all dev tasks because `results_summary.csv` was not written; all success flags false.
+- Failure diagnosis:
+  - `r017_seeded_lexical_hash` wrote raw parsed metrics for `SciFact` and `NFCorpus`, but failed before completing `FiQA2018` and before writing `results_summary.csv`.
+  - Slurm log `slurm_logs/loopmat_eval_5383288.err` shows the failure occurred while MTEB/datasets was loading `mteb/fiqa`: `ValueError: There are multiple 'mteb/fiqa' configurations in the cache: queries, corpus, default`.
+  - This is an infrastructure/data-cache failure before lexical candidate quality could be evaluated on all dev tasks; it is not a retrieval-quality result for the lexical rule.
+  - Partial raw lexical metrics are not a scoreboard claim, but they show why completing the exact same candidate is informative: `SciFact` NDCG@10 `0.57454` versus baseline `0.53932`, and `NFCorpus` `0.24817` versus baseline `0.23849`.
+- Decision: `main_goal_success=false`. Batch 017 was dev-only, only one candidate produced complete dev-task rows, and one candidate has missing/failed rows.
+- Batch 017 does not provide a final-validation-ready signal. The completed chunked-doc candidate is weakly non-regressing like the source `r016_standard_seeded_sampling` candidate but remains below weak diagnostic margin on `NFCorpus` and `FiQA2018`.
+- Mechanism-family assessment:
+  - First-token loop-memory, q/doc loop symmetry, no-loop role/MRL, and no-loop in-batch hybrid families remain exhausted for now.
+  - Length/truncation-aware document encoding is not exhausted, but the one completed fixed chunking rule is too weak to justify final validation.
+  - Candidate-only dense+lexical hash remains untested on the full dev set because the eval job failed for an infrastructure/cache reason.
+- Stop condition assessment: the latest batch completed postprocess but contains a failed/missing candidate row requiring diagnosis before any further research design. A repair may be valid only if it preserves the exact `r017_seeded_lexical_hash` candidate rule and passes the repository subagent/workflow gates before validation or submission.
+
 ## 2026-06-21 Research Design Round 005 And Batch 012 Portfolio
 
 - Trigger: `batch_011_dev` completed Slurm-native postprocess with `postprocess_done.json` and no `postprocess_failed.json`.

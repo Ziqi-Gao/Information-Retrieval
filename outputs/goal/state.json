@@ -41,120 +41,87 @@
   ],
   "last_decision": {
     "batch_id": "batch_017_dev",
-    "decided_at": "2026-06-28T18:10:00Z",
-    "decision": "Submitted exactly one dev-only standalone_main eval-only portfolio batch after batch_016_dev failed to produce a final-validation-ready signal. The portfolio tests length/truncation-aware document encoding and candidate-only lexical hashing using the weakly non-regressing r016_standard_seeded_sampling checkpoint.",
-    "source_scoreboard": "outputs/goal/runs/batch_016_dev/scoreboard.json",
-    "research_plan": "docs/research_design_round_010.md",
-    "next_manifest": "experiments/batches/batch_017_dev.yaml",
-    "next_plan": "outputs/goal/runs/batch_017_dev/submission_plan.json",
-    "job_ids": {
-      "r017_seeded_chunked_docs": {
-        "train": null,
-        "eval": "5383287"
-      },
-      "r017_seeded_lexical_hash": {
-        "train": null,
-        "eval": "5383288"
-      },
-      "postprocess": "5383289"
-    }
+    "decided_at": "2026-06-28T18:54:18Z",
+    "decision": "Postprocess completed and scoreboard was analyzed. main_goal_success=false. r017_seeded_chunked_docs completed with weak non-regressing dev deltas but no final-validation-ready signal. r017_seeded_lexical_hash is missing_result due an MTEB/datasets FiQA cache ambiguity before results_summary.csv was written; treat as infrastructure failure requiring diagnosis before any further research design.",
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev/scoreboard.json",
+    "stop_condition": "latest batch failed and requires diagnosis unless a pure repair preserving the same candidate rule is submitted after workflow gates"
   },
   "last_dev_result": {
-    "batch_id": "batch_016_dev",
-    "best_candidate_id": "r016_standard_seeded_sampling__loop1",
-    "best_candidate_track": "standalone_main",
-    "best_mean_delta": 0.0033774999999999986,
-    "best_min_delta": 0.00045000000000000595,
-    "candidates": [
-      {
-        "candidate_id": "r016_standard_seeded_sampling__loop1",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {
-          "FiQA2018": 0.0008599999999999719,
-          "NFCorpus": 0.00045000000000000595,
-          "SCIDOCS": 0.0038600000000000023,
-          "SciFact": 0.008340000000000014
-        },
-        "dev_tasks_lost": 2,
-        "dev_tasks_won": 2,
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": 0.0033774999999999986,
-        "min_delta": 0.00045000000000000595,
-        "minimal_positive_signal": false,
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r016_standard_seeded_sampling",
-        "status": "completed",
-        "tasks_lost": 5,
-        "tasks_valid": 4,
-        "tasks_won": 2
-      },
-      {
-        "candidate_id": "r016_standard_inbatch_hybrid__loop1",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {
-          "FiQA2018": -0.0014199999999999768,
-          "NFCorpus": -0.0013200000000000156,
-          "SCIDOCS": 0.0010100000000000109,
-          "SciFact": -0.006859999999999977
-        },
-        "dev_tasks_lost": 3,
-        "dev_tasks_won": 1,
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": -0.0021474999999999897,
-        "min_delta": -0.006859999999999977,
-        "minimal_positive_signal": false,
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r016_standard_inbatch_hybrid",
-        "status": "completed",
-        "tasks_lost": 6,
-        "tasks_valid": 4,
-        "tasks_won": 1
-      },
-      {
-        "candidate_id": "r016_qdoc_final_mean_pool_t3_neg3__loop3",
-        "candidate_track": "standalone_main",
-        "dev_deltas": {
-          "FiQA2018": -0.05099999999999999,
-          "NFCorpus": -0.04792000000000002,
-          "SCIDOCS": -0.020239999999999994,
-          "SciFact": -0.07807000000000003
-        },
-        "dev_tasks_lost": 4,
-        "dev_tasks_won": 0,
-        "fusion_diagnostic_pass": false,
-        "main_goal_success": false,
-        "mean_delta": -0.049307500000000004,
-        "min_delta": -0.07807000000000003,
-        "minimal_positive_signal": false,
-        "publishable_score_candidate": false,
-        "purpose": "dev",
-        "research_grade_threshold_pass": false,
-        "run_id": "r016_qdoc_final_mean_pool_t3_neg3",
-        "status": "completed",
-        "tasks_lost": 7,
-        "tasks_valid": 4,
-        "tasks_won": 0
-      }
-    ],
-    "dev_tasks_valid": 4,
-    "evaluated_at": "2026-06-28T11:08:10Z",
-    "failure_pattern": "Seeded no-loop sampling was non-regressing on all four observed dev tasks but below weak diagnostic margin on NFCorpus and FiQA2018, below +0.002 on those same tasks, and below +0.005 macro mean. Q/doc mean-pool loop symmetry regressed all four dev tasks; no-loop in-batch hybrid regressed three of four dev tasks.",
-    "fusion_diagnostic_pass": false,
-    "main_goal_success": false,
-    "minimal_positive_signal": false,
+    "batch_id": "batch_017_dev",
+    "purpose": "dev",
     "postprocess_done": true,
     "postprocess_failed": false,
-    "publishable_score_candidate": false,
-    "purpose": "dev",
+    "evaluated_at": "2026-06-28T18:45:00Z",
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev/scoreboard.json",
+    "main_goal_success": false,
+    "minimal_positive_signal": false,
     "research_grade_threshold_pass": false,
-    "source_scoreboard": "outputs/goal/runs/batch_016_dev/scoreboard.json",
-    "strong_viable_global_dev_signal": false
+    "fusion_diagnostic_pass": false,
+    "publishable_score_candidate": false,
+    "strong_viable_global_dev_signal": false,
+    "dev_tasks_valid": 4,
+    "best_candidate_id": "r017_seeded_chunked_docs__loop1",
+    "best_candidate_track": "standalone_main",
+    "best_min_delta": 0.00045000000000000595,
+    "best_mean_delta": 0.0033774999999999986,
+    "candidates": [
+      {
+        "candidate_id": "r017_seeded_chunked_docs__loop1",
+        "run_id": "r017_seeded_chunked_docs",
+        "candidate_track": "standalone_main",
+        "purpose": "dev",
+        "status": "completed",
+        "dev_deltas": {
+          "SciFact": 0.008340000000000014,
+          "NFCorpus": 0.00045000000000000595,
+          "SCIDOCS": 0.0038600000000000023,
+          "FiQA2018": 0.0008599999999999719
+        },
+        "min_delta": 0.00045000000000000595,
+        "mean_delta": 0.0033774999999999986,
+        "dev_tasks_won": 2,
+        "dev_tasks_lost": 2,
+        "tasks_valid": 4,
+        "tasks_won": 2,
+        "tasks_lost": 5,
+        "minimal_positive_signal": false,
+        "research_grade_threshold_pass": false,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "publishable_score_candidate": false
+      },
+      {
+        "candidate_id": "r017_seeded_lexical_hash__loop1",
+        "run_id": "r017_seeded_lexical_hash",
+        "candidate_track": "standalone_main",
+        "purpose": "dev",
+        "status": "missing_result",
+        "dev_deltas": {},
+        "partial_raw_dev_metrics_not_scoreboard_claim": {
+          "SciFact": 0.57454,
+          "NFCorpus": 0.24817
+        },
+        "partial_raw_dev_deltas_not_scoreboard_claim": {
+          "SciFact": 0.03522,
+          "NFCorpus": 0.00968
+        },
+        "min_delta": null,
+        "mean_delta": null,
+        "dev_tasks_won": 0,
+        "dev_tasks_lost": 4,
+        "tasks_valid": 0,
+        "tasks_won": 0,
+        "tasks_lost": 7,
+        "minimal_positive_signal": false,
+        "research_grade_threshold_pass": false,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "publishable_score_candidate": false,
+        "failure_reason": "missing results_summary.csv after FiQA2018 cache/config loading failure: multiple mteb/fiqa configurations in cache"
+      }
+    ],
+    "failure_pattern": "Chunked document aggregation reproduced the weak non-regressing r016 seeded-sampling pattern but stayed below weak diagnostic margin on NFCorpus and FiQA2018. Lexical-hash candidate failed for an infrastructure/data-cache issue before full dev coverage, so the candidate-only dense+lexical mechanism remains untested on all dev tasks.",
+    "mechanism_family_assessment": "First-token loop-memory, q/doc loop symmetry, role/MRL, and in-batch hybrid families remain exhausted. Length/truncation-aware doc encoding is not exhausted but this fixed chunking rule is too weak for final validation. Candidate-only dense+lexical hash is not exhausted because batch_017 had an infrastructure failure before full dev evaluation."
   },
   "last_final_validation": {
     "batch_id": "batch_003_final_repair",
@@ -175,19 +142,19 @@
     "tasks_won": 5
   },
   "last_postprocess_check": {
-    "batch_id": "batch_016_dev",
+    "batch_id": "batch_017_dev",
+    "status": "completed",
     "postprocess_done": true,
-    "postprocess_done_path": "outputs/goal/runs/batch_016_dev/postprocess_done.json",
+    "postprocess_done_path": "outputs/goal/runs/batch_017_dev/postprocess_done.json",
     "postprocess_failed": false,
     "postprocess_failed_path": null,
-    "scoreboard_json": "outputs/goal/runs/batch_016_dev/scoreboard.json",
-    "status": "completed"
+    "scoreboard_json": "outputs/goal/runs/batch_017_dev/scoreboard.json"
   },
-  "last_scoreboard": "outputs/goal/runs/batch_016_dev/scoreboard.json",
+  "last_scoreboard": "outputs/goal/runs/batch_017_dev/scoreboard.json",
   "last_status_attempt": {
-    "attempted_at": "2026-06-28T17:57:34Z",
-    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_016_dev --update-state",
-    "result": "Local status refresh hung inside Slurm squeue query for job 5340269 and was killed; deterministic postprocess_done.json, collected_results.csv, scoreboard.csv/json, and submission_plan.json evidence was used instead."
+    "attempted_at": "2026-06-28T18:54:18Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_017_dev --update-state",
+    "result": "Local status refresh hung inside Slurm squeue query for job 5383287 and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, and eval logs were used instead."
   },
   "last_submission_attempts": {
     "batch_id": "batch_017_dev",
@@ -196,15 +163,15 @@
   },
   "last_validation": {
     "batch_id": "batch_017_dev",
-    "subagent_gate": "passed",
-    "research_design_subagent_gate": "passed",
     "code_risk_review": "initial_manifest_text_blocker_resolved; no_real_fusion_misuse; medium_dedupe_and_fusion_guard_risks_resolved; runtime_risk_recorded",
     "compileall_src_scripts": "passed",
-    "shell_syntax_scripts": "passed",
     "diff_check": "passed",
-    "manifest_validation": "passed_with_expected_dev_only_standalone_warnings",
     "dry_run_submit_postprocess": "passed",
-    "preflight": "passed"
+    "manifest_validation": "passed_with_expected_dev_only_standalone_warnings",
+    "preflight": "passed",
+    "research_design_subagent_gate": "passed",
+    "shell_syntax_scripts": "passed",
+    "subagent_gate": "passed"
   },
   "last_watcher": {
     "batch_id": "batch_002_dev",
@@ -262,39 +229,42 @@
     "purpose": "dev",
     "uses_dev_tasks_only": true
   },
-  "next_required_action": "Wait for eval jobs 5383287 and 5383288 plus postprocess job 5383289, then inspect outputs/goal/runs/batch_017_dev/scoreboard.json.",
+  "next_required_action": "Do not design a new research batch from batch_017. Either stop after the recorded diagnosis, or perform a pure infrastructure repair of the exact r017_seeded_lexical_hash candidate after satisfying docs/codex_subagents.md workflow gates; any repair submission must use scripts/goal_submit_batch.py --submit --submit-postprocess.",
   "open_jobs": [
     {
       "batch_id": "batch_017_dev",
-      "depends_on": null,
-      "job_id": "5383287",
       "run_id": "r017_seeded_chunked_docs",
-      "status": "submitted",
-      "type": "eval"
+      "type": "eval",
+      "job_id": "5383287",
+      "status": "completed",
+      "raw_state": "COMPLETED",
+      "source": "postprocess_done+scoreboard"
     },
     {
       "batch_id": "batch_017_dev",
-      "depends_on": null,
-      "job_id": "5383288",
       "run_id": "r017_seeded_lexical_hash",
-      "status": "submitted",
-      "type": "eval"
+      "type": "eval",
+      "job_id": "5383288",
+      "status": "failed",
+      "raw_state": "FAILED",
+      "source": "postprocess_done+eval_log"
     },
     {
       "batch_id": "batch_017_dev",
-      "depends_on": "afterany:5383287:5383288",
-      "job_id": "5383289",
       "run_id": "batch_017_dev",
-      "status": "submitted",
-      "type": "postprocess"
+      "type": "postprocess",
+      "job_id": "5383289",
+      "status": "completed",
+      "raw_state": "COMPLETED",
+      "source": "postprocess_done"
     }
   ],
-  "phase": "SUBMIT_BATCH",
+  "phase": "DECIDE_NEXT",
   "postprocess_job_id": "5383289",
   "primary_metric": "ndcg_at_10",
   "repo": {
     "branch": "codex-bert-only-loop-memory",
-    "commit": "64e1dffc351d928ee4cc14f2199cd7448e75936f",
+    "commit": "690ddd659a8d67f4f607fe2c16d6bd12c9ba1264",
     "dirty": true
   },
   "research_design_mode": {
