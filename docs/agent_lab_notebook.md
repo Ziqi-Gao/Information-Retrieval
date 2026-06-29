@@ -950,7 +950,15 @@ This notebook records factual preparation steps for the autonomous retrieval goa
   - Postprocess job ID: `5389900`.
   - Postprocess dependency: `afterany:5389899`.
   - Submission plan: `outputs/goal/runs/batch_018_final_repair/submission_plan.json`.
-- Next action: wait for Slurm-native postprocess, then inspect `outputs/goal/runs/batch_018_final_repair/scoreboard.json`.
+- Result:
+  - Eval job `5389899` completed successfully; postprocess job `5389900` completed successfully.
+  - Marker: `outputs/goal/runs/batch_018_final_repair/postprocess_done.json`.
+  - Scoreboard: `outputs/goal/runs/batch_018_final_repair/scoreboard.json`.
+  - Candidate `r017_seeded_lexical_hash__loop1` is `standalone_main`, `purpose=final`, with all seven final tasks valid.
+  - Final deltas: `SciFact +0.03522`, `NFCorpus +0.00968`, `SCIDOCS +0.01346`, `FiQA2018 +0.00665`, `ArguAna +0.00857`, `Touche2020 -0.01396`, `TRECCOVID -0.00931`.
+  - Aggregate: tasks won/lost `5/2`, tasks at main margin `5/7`, min delta `-0.01396`, mean delta `+0.007187142857142864`.
+  - Decision: `main_goal_success=false`. The candidate fails the final protocol because `Touche2020` and `TRECCOVID` regress, even though the macro mean exceeds `+0.005`.
+- Next action: no final success claim. Analyze `Touche2020` and `TRECCOVID` regressions before designing another batch.
 
 ## 2026-06-28 Round 012 Approved Final Validation Plan
 
