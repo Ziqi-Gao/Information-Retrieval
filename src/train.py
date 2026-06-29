@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import get_linear_schedule_with_warmup
 
-from .data import RLHNRetrievalDataset, collate_fn
+from .data import RLHNRetrievalDataset, ReasonIRRetrievalDataset, collate_fn
 from .experiments import get_version_spec, version_names
 from .losses import (
     dimensional_matryoshka_retrieval_loss,
@@ -38,6 +38,7 @@ from .utils import (
 DEFAULTS: Dict[str, Any] = {
     "model_name_or_path": "answerdotai/ModernBERT-base",
     "dataset_name": "rlhn/rlhn-680K",
+    "dataset_config": None,
     "version": "standard",
     "output_dir": "outputs/standard",
     "tmax": 10,
@@ -84,6 +85,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None, help="YAML config path. CLI overrides take precedence.")
     parser.add_argument("--model_name_or_path", default=None)
     parser.add_argument("--dataset_name", default=None)
+    parser.add_argument("--dataset_config", default=None)
     parser.add_argument("--version", choices=version_names(), default=None)
     parser.add_argument("--output_dir", default=None)
     parser.add_argument("--tmax", type=int, default=None)
@@ -216,6 +218,27 @@ def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) ->
             {"params": model.encoder.parameters(), "lr": args.learning_rate_encoder, "name": "encoder"},
         ],
         weight_decay=args.weight_decay,
+    )
+
+
+def build_training_dataset(args: argparse.Namespace) -> torch.utils.data.Dataset:
+    if args.dataset_name == "reasonir/reasonir-data":
+        return ReasonIRRetrievalDataset(
+            dataset_name=args.dataset_name,
+            dataset_config=args.dataset_config or "hq",
+            train_sample_size=args.train_sample_size,
+            num_negatives=args.num_negatives,
+            seed=args.seed,
+        )
+
+    if args.dataset_config:
+        raise ValueError(f"dataset_config is only supported for reasonir/reasonir-data, got {args.dataset_name!r}.")
+    return RLHNRetrievalDataset(
+        dataset_name=args.dataset_name,
+        train_sample_size=args.train_sample_size,
+        num_negatives=args.num_negatives,
+        seed=args.seed,
+        passage_sampling_strategy=args.passage_sampling_strategy,
     )
 
 
@@ -587,13 +610,7 @@ def main() -> None:
     autocast_dtype = torch.bfloat16 if args.bf16 else torch.float16
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda" and args.fp16))
 
-    dataset = RLHNRetrievalDataset(
-        dataset_name=args.dataset_name,
-        train_sample_size=args.train_sample_size,
-        num_negatives=args.num_negatives,
-        seed=args.seed,
-        passage_sampling_strategy=args.passage_sampling_strategy,
-    )
+    dataset = build_training_dataset(args)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
