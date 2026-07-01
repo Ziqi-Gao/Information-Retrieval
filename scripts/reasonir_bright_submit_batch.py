@@ -66,6 +66,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true", help="Allow existing non-empty output directories.")
     parser.add_argument("--submit-postprocess", action="store_true")
     parser.add_argument(
+        "--only-run-id",
+        action="append",
+        default=[],
+        help="Submit only the selected run_id. Repeat to submit multiple repair runs.",
+    )
+    parser.add_argument(
         "--reuse-train-job-id",
         action="append",
         default=[],
@@ -293,10 +299,25 @@ def main() -> None:
         raise SystemExit("Refusing --submit because budget.allow_submit is false.")
 
     plan = build_plan(manifest_path, manifest)
+    if args.only_run_id:
+        requested_run_ids = set(args.only_run_id)
+        unknown = sorted(requested_run_ids - {job["run_id"] for job in plan["jobs"]})
+        if unknown:
+            raise SystemExit(f"--only-run-id contains unknown run ids: {unknown}")
+        plan["jobs"] = [job for job in plan["jobs"] if job["run_id"] in requested_run_ids]
+        plan["only_run_id"] = sorted(requested_run_ids)
+        if args.submit_postprocess:
+            raise SystemExit("--submit-postprocess is not supported with --only-run-id repair submissions")
     assert_output_dirs_available(plan, resume=args.resume, dry_run=dry_run)
     batch_dir = ensure_dir(Path((manifest.get("defaults") or {}).get("output_base", "outputs/reasonir_bright/runs")) / manifest["batch_id"])
     manifest_copy = batch_dir / ("batch_manifest.dry_run.yaml" if dry_run else "batch_manifest.submitted.yaml")
-    plan_path = batch_dir / ("dry_run_plan.json" if dry_run else "submission_plan.json")
+    if args.only_run_id:
+        run_suffix = "_".join(sorted(args.only_run_id))
+        plan_path = batch_dir / (
+            f"dry_run_plan.repair_{run_suffix}.json" if dry_run else f"submission_plan.repair_{run_suffix}.json"
+        )
+    else:
+        plan_path = batch_dir / ("dry_run_plan.json" if dry_run else "submission_plan.json")
     write_yaml(manifest_copy, manifest)
 
     reused_train_job_ids = parse_eval_job_ids(args.reuse_train_job_id)
