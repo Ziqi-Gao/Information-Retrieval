@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from goal_common import atomic_write_json, ensure_dir, load_yaml, now_utc, parse_task_list, repo_status, strict_bool, write_yaml
 from goal_submit_batch import (
     format_export,
+    parse_eval_job_ids,
     run_sbatch,
     safe_postprocess_runtime_exports,
     safe_runtime_exports,
@@ -25,6 +26,20 @@ EXPECTED_RUNS = [
     "loop_final_recurrent_no_memory",
     "loop_matryoshka_recurrent_no_memory",
 ]
+ALLOWED_BRIGHT_DOMAINS = {
+    "aops",
+    "biology",
+    "earth_science",
+    "economics",
+    "leetcode",
+    "pony",
+    "psychology",
+    "robotics",
+    "stackoverflow",
+    "sustainable_living",
+    "theoremqa_questions",
+    "theoremqa_theorems",
+}
 FORBIDDEN_EVAL_KEYS = {
     "lexical_hash_dim",
     "lexical_weight",
@@ -50,6 +65,12 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--submit", action="store_true")
     parser.add_argument("--resume", action="store_true", help="Allow existing non-empty output directories.")
     parser.add_argument("--submit-postprocess", action="store_true")
+    parser.add_argument(
+        "--reuse-train-job-id",
+        action="append",
+        default=[],
+        help="Reuse an already completed train job for a run_id, formatted run_id=job_id.",
+    )
     return parser.parse_args()
 
 
@@ -92,8 +113,13 @@ def validate_manifest(path: Path, manifest: Dict[str, Any]) -> None:
         raise SystemExit("training config num_negatives must be 1 for ReasonIR HQ")
 
     domains = parse_task_list(((manifest.get("domains") or {}).get("dev")))
-    if domains != ["biology", "economics", "psychology", "stackoverflow"]:
-        raise SystemExit("domains.dev must be biology, economics, psychology, stackoverflow in that order")
+    if not domains:
+        raise SystemExit("domains.dev must contain at least one BRIGHT domain")
+    if len(domains) != len(set(domains)):
+        raise SystemExit("domains.dev must not contain duplicate domains")
+    unknown_domains = sorted(set(domains) - ALLOWED_BRIGHT_DOMAINS)
+    if unknown_domains:
+        raise SystemExit(f"domains.dev contains unsupported BRIGHT domains: {unknown_domains}")
 
     experiments = manifest.get("experiments") or []
     run_ids = [experiment.get("run_id") for experiment in experiments]
@@ -103,6 +129,9 @@ def validate_manifest(path: Path, manifest: Dict[str, Any]) -> None:
         if experiment.get("version") != experiment.get("run_id"):
             raise SystemExit(f"{experiment.get('run_id')} must use the matching version name for this track.")
         eval_config = experiment.get("eval") or {}
+        eval_domains = parse_task_list(eval_config.get("domains"))
+        if eval_domains and eval_domains != domains:
+            raise SystemExit(f"{experiment.get('run_id')} eval.domains must match top-level domains.dev")
         forbidden = sorted(FORBIDDEN_EVAL_KEYS.intersection(eval_config))
         if forbidden:
             raise SystemExit(f"{experiment.get('run_id')} eval contains forbidden fields: {forbidden}")
@@ -132,6 +161,12 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
     defaults = manifest.get("defaults") or {}
     run_root = Path(defaults.get("output_base", "outputs/reasonir_bright/runs")) / batch_id
     eval_root = Path(defaults.get("eval_output_base", "outputs/reasonir_bright/eval")) / batch_id
+    checkpoint_batch_id = defaults.get("checkpoint_batch_id")
+    checkpoint_root = (
+        Path(defaults.get("output_base", "outputs/reasonir_bright/runs")) / str(checkpoint_batch_id)
+        if checkpoint_batch_id
+        else run_root
+    )
     config = defaults.get("config", "configs/reasonir_bright_dev.yaml")
     domains = parse_task_list(((manifest.get("domains") or {}).get("dev")))
     scheduler_args = sbatch_args_from_env()
@@ -142,7 +177,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
         version = experiment["version"]
         train_output_dir = run_root / run_id
         eval_output_dir = eval_root / run_id
-        checkpoint_dir = train_output_dir / "final"
+        checkpoint_dir = checkpoint_root / run_id / "final"
         train_exports = dict(runtime_exports)
         train_exports.update(
             {
@@ -198,6 +233,7 @@ def build_plan(manifest_path: Path, manifest: Dict[str, Any]) -> Dict[str, Any]:
                 "eval_export": format_export(eval_exports),
                 "train_job_id": None,
                 "eval_job_id": None,
+                "checkpoint_batch_id": checkpoint_batch_id,
             }
         )
     return {
@@ -263,10 +299,24 @@ def main() -> None:
     plan_path = batch_dir / ("dry_run_plan.json" if dry_run else "submission_plan.json")
     write_yaml(manifest_copy, manifest)
 
+    reused_train_job_ids = parse_eval_job_ids(args.reuse_train_job_id)
     for job in plan["jobs"]:
-        train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
+        train_job_id = reused_train_job_ids.get(job["run_id"])
+        if job.get("checkpoint_batch_id"):
+            checkpoint_dir = Path(job["checkpoint_dir"])
+            if not checkpoint_dir.exists():
+                raise SystemExit(f"Missing reused checkpoint for {job['run_id']}: {checkpoint_dir}")
+            train_job_id = f"checkpoint:{job['checkpoint_batch_id']}"
+            job["train_reused"] = True
+        elif train_job_id:
+            job["train_reused"] = True
+        else:
+            train_job_id = run_sbatch(job["train_command"], dry_run=dry_run)
+            job["train_reused"] = False
         job["train_job_id"] = train_job_id
-        dependency_args = [f"--dependency=afterok:{train_job_id}"] if train_job_id else []
+        dependency_args = []
+        if train_job_id and not job.get("train_reused"):
+            dependency_args = [f"--dependency=afterok:{train_job_id}"]
         eval_command = list(job["eval_command_base"]) + dependency_args + [
             f"--export={job['eval_export']}",
             "scripts/slurm_reasonir_bright_eval.sbatch",
@@ -289,7 +339,8 @@ def main() -> None:
     print(f"{mode} ReasonIR-BRIGHT batch {manifest['batch_id']} with {len(plan['jobs'])} experiment(s).")
     print(f"Plan: {plan_path}")
     for job in plan["jobs"]:
-        print(f"- {job['run_id']} train_job={job['train_job_id']} eval_job={job['eval_job_id']}")
+        reused = " reused_train=true" if job.get("train_reused") else ""
+        print(f"- {job['run_id']} train_job={job['train_job_id']} eval_job={job['eval_job_id']}{reused}")
     if plan["postprocess"].get("enabled"):
         print(f"- postprocess job={plan['postprocess'].get('job_id')}")
         if dry_run:

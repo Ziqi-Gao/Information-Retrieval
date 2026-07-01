@@ -158,3 +158,110 @@ Check Slurm progress after submission:
 ```bash
 squeue -u "$USER" -n reasonir_train,bright_eval,bright_postprocess
 ```
+
+## Batch 001 Results
+
+Batch:
+
+```text
+reasonir_bright_batch_001_dev
+```
+
+Evaluated short-document BRIGHT dev domains:
+
+- `biology`
+- `economics`
+- `psychology`
+- `stackoverflow`
+
+The batch completed successfully. All seven runs produced complete
+`ndcg_at_10` rows for the expected domains and loop indices.
+
+The batch-local `standard` baseline macro over these four domains was:
+
+```text
+0.0147147443
+```
+
+Formal candidate interpretation uses only the predeclared loop for each method.
+For loop methods in batch 001, that predeclared loop is `loop10`; other loop
+rows are diagnostic only.
+
+Best formal candidate:
+
+```text
+loop_matryoshka_mean_pool__loop10
+macro_ndcg_at_10: 0.0181144453
+mean_delta: +0.0033997011
+min_delta: -0.0004924202
+domains_non_regressing: 3 / 4
+regressed_domain: biology
+```
+
+Protocol readout:
+
+```text
+valid completed batch, formal success = no
+```
+
+Reason: the best formal candidate improved macro NDCG@10 but regressed on
+`biology`. This must not be reported as an all-domain BRIGHT success.
+
+Diagnostic note:
+
+```text
+loop_matryoshka_mean_pool__loop1
+mean_delta: +0.0054113316
+min_delta: +0.0039253650
+domains_non_regressing: 4 / 4
+```
+
+This is a diagnostic signal only because `loop1` was not the predeclared
+candidate loop for `loop_matryoshka_mean_pool`.
+
+## Batch 002 Remaining-Domain Evaluation
+
+Manifest:
+
+```text
+experiments/batches/reasonir_bright_batch_002_remaining_domains.yaml
+```
+
+Purpose:
+
+```text
+Evaluate the eight BRIGHT short-document domains not covered by batch 001,
+reusing the batch 001 checkpoints and not retraining.
+```
+
+Remaining domains:
+
+- `aops`
+- `earth_science`
+- `leetcode`
+- `pony`
+- `robotics`
+- `sustainable_living`
+- `theoremqa_questions`
+- `theoremqa_theorems`
+
+The manifest uses:
+
+```text
+defaults.checkpoint_batch_id: reasonir_bright_batch_001_dev
+```
+
+This makes the submitter use checkpoints from batch 001 while writing batch 002
+eval outputs into its own namespace. The same formal candidate rule applies:
+loop methods predeclare `candidate_loop_indices: [10]`, and non-loop diagnostic
+selection is not allowed for formal claims.
+
+Submission status at handoff:
+
+```text
+submitted, pending
+```
+
+Postprocess is scheduled to run after all batch 002 evaluation jobs finish.
+Do not interpret batch 002 until postprocess has written its collected results
+and scoreboard.

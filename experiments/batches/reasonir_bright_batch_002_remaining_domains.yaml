@@ -1,0 +1,203 @@
+batch_id: reasonir_bright_batch_002_remaining_domains
+description: "ReasonIR-BRIGHT short-document evaluation on the eight domains not covered by batch 001, reusing batch 001 checkpoints."
+created_by: codex
+track: reasonir_bright
+purpose: dev
+primary_metric: ndcg_at_10
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 56
+  allow_submit: true
+
+domains:
+  dev:
+    - aops
+    - earth_science
+    - leetcode
+    - pony
+    - robotics
+    - sustainable_living
+    - theoremqa_questions
+    - theoremqa_theorems
+
+defaults:
+  config: configs/reasonir_bright_dev.yaml
+  output_base: outputs/reasonir_bright/runs
+  eval_output_base: outputs/reasonir_bright/eval
+  checkpoint_batch_id: reasonir_bright_batch_001_dev
+  eval_all_loops: false
+  query_batch_size: 32
+  corpus_batch_size: 64
+  score_chunk_size: 8192
+
+training:
+  model_name_or_path: answerdotai/ModernBERT-base
+  dataset_name: reasonir/reasonir-data
+  dataset_config: hq
+  train_sample_size: 50000
+  num_negatives: 1
+  epochs: 1
+  max_query_length: 256
+  max_doc_length: 512
+  tau: 0.05
+  batch_size: 4
+  gradient_accumulation_steps: 4
+
+evaluation:
+  dataset_name: xlangai/BRIGHT
+  examples_config: examples
+  documents_config: documents
+  use_long_documents: false
+  metric: ndcg_at_10
+  forbidden_inputs:
+    - reasoning
+    - gold_answer
+  forbidden_methods:
+    - lexical_hash
+    - BM25
+    - frozen_standard_fusion
+    - standard_score_interpolation
+    - standard_candidate_ensemble
+    - final_domain_tuning
+
+experiments:
+  - run_id: standard
+    version: standard
+    role: reasonir_bright_standard_baseline
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+
+  - run_id: loop_final_mean_pool
+    version: loop_final_mean_pool
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+
+  - run_id: loop_matryoshka_mean_pool
+    version: loop_matryoshka_mean_pool
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+
+  - run_id: loop_final_recurrent_mean_pool
+    version: loop_final_recurrent_mean_pool
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+
+  - run_id: loop_matryoshka_recurrent_mean_pool
+    version: loop_matryoshka_recurrent_mean_pool
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+
+  - run_id: loop_final_recurrent_no_memory
+    version: loop_final_recurrent_no_memory
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+
+  - run_id: loop_matryoshka_recurrent_no_memory
+    version: loop_matryoshka_recurrent_no_memory
+    role: loop_candidate
+    train: {}
+    eval:
+      domains:
+        - aops
+        - earth_science
+        - leetcode
+        - pony
+        - robotics
+        - sustainable_living
+        - theoremqa_questions
+        - theoremqa_theorems
+      use_long_documents: false
+      eval_all_loops: true
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
