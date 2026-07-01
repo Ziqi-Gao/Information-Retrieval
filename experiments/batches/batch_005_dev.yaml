@@ -1,0 +1,149 @@
+batch_id: batch_005_dev
+description: "Dev-only standalone probes for existing final-loop and no-memory checkpoints."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r005_standalone_loop_final_t10
+    claim_track: standalone_main
+    hypothesis: "The final supervised loop_final mean-pool checkpoint may be stronger as an independent scorer at its canonical final depth than the loopwise checkpoint depths tested in batch_004_dev."
+    mechanism: "Evaluation-only scoring from the existing loop_final mean-pool checkpoint at one predeclared loop depth."
+    expected_effect: "Tests whether final-loop supervision produces a more competitive standalone representation on the dev retrieval tasks."
+    version: loop_final
+    eval_only: true
+    candidate_rule: "Use loop_idx=10 for every dev task; use no baseline checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "The final-loop representation may still underperform the frozen comparison baseline on dense retrieval tasks."
+      - "A depth trained for final-loop loss may not improve all dev tasks consistently."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_final_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing checkpoint with a fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r005_standalone_loop_final_recurrent_t10
+    claim_track: standalone_main
+    hypothesis: "The recurrent-query final-loop checkpoint may use its supervised final depth more effectively than the loopwise recurrent checkpoint tested at an intermediate depth."
+    mechanism: "Evaluation-only scoring from the existing loop_final recurrent mean-pool checkpoint at one predeclared loop depth."
+    expected_effect: "Checks whether recurrent query updates help when evaluated at the depth targeted by final-loop supervision."
+    version: loop_final_recurrent_mean_pool
+    eval_only: true
+    candidate_rule: "Use loop_idx=10 for every dev task; use no baseline checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Recurrent query updates may drift away from retrieval-useful representations."
+      - "Final-depth recurrence may improve one dev task while hurting another."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_final_recurrent_mean_pool
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing checkpoint with a fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r005_standalone_loop_final_recurrent_no_memory_t10
+    claim_track: standalone_main
+    hypothesis: "Removing the memory token from the recurrent final-loop checkpoint may reduce representation drift while preserving iterative query refinement."
+    mechanism: "Evaluation-only scoring from the existing loop_final recurrent no-memory checkpoint at one predeclared loop depth."
+    expected_effect: "Contrasts final-depth recurrent behavior with and without memory tokens on the same dev tasks."
+    version: loop_final_recurrent_no_memory
+    eval_only: true
+    candidate_rule: "Use loop_idx=10 for every dev task; use no baseline checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "No-memory recurrence may collapse toward weaker query states."
+      - "The final loop may over-refine short retrieval queries."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_final_recurrent_no_memory
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing checkpoint with a fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r005_standalone_matryoshka_recurrent_no_memory_t3
+    claim_track: standalone_main
+    hypothesis: "A loopwise recurrent no-memory checkpoint at the same fixed loop depth as prior dev probes may separate useful recurrence from memory-token drift."
+    mechanism: "Evaluation-only scoring from the existing loop_matryoshka recurrent no-memory checkpoint at one predeclared loop depth."
+    expected_effect: "Tests whether no-memory loopwise recurrence is a more viable standalone scorer than recurrent mean-pool memory on dev tasks."
+    version: loop_matryoshka_recurrent_no_memory
+    eval_only: true
+    candidate_rule: "Use loop_idx=3 for every dev task; use no baseline checkpoint, ensemble, concatenation, or score interpolation in candidate scoring."
+    expected_failure_modes:
+      - "No-memory recurrence may not provide enough additional signal over the base encoder."
+      - "The fixed loop depth may still regress on multiple dev tasks."
+    eval:
+      checkpoint_dir: outputs/final_grid_experiment/checkpoints/loop_matryoshka_recurrent_no_memory
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 3
+      candidate_loop_indices:
+        - 3
+    risk:
+      level: low
+      reason: "Dev-only eval of an existing checkpoint with a fixed global loop depth and no external scoring input."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

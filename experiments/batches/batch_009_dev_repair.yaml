@@ -1,0 +1,68 @@
+batch_id: batch_009_dev_repair
+description: "Repair rerun for the batch_009_dev document-loop candidate after an NFCorpus cache loader failure."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 1
+  max_gpu_hours_estimate: 4
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r009_docloop_first_token_t7_repair
+    claim_track: standalone_main
+    hypothesis: "This repair should recover the originally predeclared batch_009 document-loop dev evidence after a cache loader failure, without changing the candidate rule."
+    mechanism: "Evaluation-only scoring from the batch_006 first-token checkpoint with fixed query loop_idx=7 and fixed document loop_idx=7."
+    expected_effect: "Completes the original batch_009 document-loop symmetry test; it does not introduce a new research mechanism or use frozen-baseline scoring input."
+    version: loop_matryoshka_first_token
+    eval_only: true
+    candidate_rule: "Use query loop_idx=7 and document loop_idx=7 from the batch_006 first-token checkpoint for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "The external cache loader failure may recur."
+      - "Looping documents may amplify document noise and reduce ranking quality."
+      - "The checkpoint was trained with non-looped documents, so document-side looping may create a new mismatch."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_006_dev/r006_loop_matryoshka_first_token_t7/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 7
+      loop_docs: true
+      doc_loop_idx: 7
+      candidate_loop_indices:
+        - 7
+    risk:
+      level: low
+      reason: "Pure eval-only repair of an already predeclared standalone_main dev candidate after missing_result caused by a cache loader error; no metric, baseline, task set, threshold, or scoring-rule change."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

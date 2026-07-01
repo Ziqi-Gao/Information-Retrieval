@@ -12,6 +12,7 @@ from .utils import ensure_dir, write_json
 
 LOOP_MEMORY_MODES = {"first_token", "mean_pool", "none", "token_concat"}
 LOOP_QUERY_MODES = {"initial_embedding", "recurrent_hidden"}
+EMBEDDING_POOLING_MODES = {"mean_pool", "first_token"}
 
 
 class LoopMatryoshkaRetriever(nn.Module):
@@ -25,6 +26,9 @@ class LoopMatryoshkaRetriever(nn.Module):
         detach_memory: bool = False,
         loop_memory_mode: str = "mean_pool",
         loop_query_mode: str = "initial_embedding",
+        embedding_pooling_mode: str = "mean_pool",
+        query_prefix: str = "",
+        doc_prefix: str = "",
     ) -> None:
         super().__init__()
         if tmax < 1:
@@ -46,6 +50,12 @@ class LoopMatryoshkaRetriever(nn.Module):
             known = ", ".join(sorted(LOOP_QUERY_MODES))
             raise ValueError(f"loop_query_mode must be one of {{{known}}}, got {loop_query_mode!r}.")
         self.loop_query_mode = str(loop_query_mode)
+        if embedding_pooling_mode not in EMBEDDING_POOLING_MODES:
+            known = ", ".join(sorted(EMBEDDING_POOLING_MODES))
+            raise ValueError(f"embedding_pooling_mode must be one of {{{known}}}, got {embedding_pooling_mode!r}.")
+        self.embedding_pooling_mode = str(embedding_pooling_mode)
+        self.query_prefix = str(query_prefix or "")
+        self.doc_prefix = str(doc_prefix or "")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         self.encoder = AutoModel.from_pretrained(model_name_or_path)
@@ -60,16 +70,35 @@ class LoopMatryoshkaRetriever(nn.Module):
         pooled = (last_hidden_state * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-6)
         return pooled
 
+    def pool_hidden(self, last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        if self.embedding_pooling_mode == "mean_pool":
+            return self.mean_pool(last_hidden_state, attention_mask)
+        if self.embedding_pooling_mode == "first_token":
+            return last_hidden_state[:, 0, :]
+        raise ValueError(f"Unknown embedding_pooling_mode: {self.embedding_pooling_mode}")
+
     def _device(self, device: Optional[Union[torch.device, str]] = None) -> torch.device:
         if device is not None:
             return torch.device(device)
         return next(self.parameters()).device
 
-    def _encode_texts_once(self, texts: List[str], max_length: int, device: torch.device) -> torch.Tensor:
+    @staticmethod
+    def _with_prefix(texts: List[str], prefix: str) -> List[str]:
+        if not prefix:
+            return texts
+        return [prefix + text for text in texts]
+
+    def _encode_texts_once(
+        self,
+        texts: List[str],
+        max_length: int,
+        device: torch.device,
+        text_prefix: str = "",
+    ) -> torch.Tensor:
         if not texts:
             return torch.empty(0, self.embedding_dim, device=device)
         encoded = self.tokenizer(
-            texts,
+            self._with_prefix(texts, text_prefix),
             padding=True,
             truncation=True,
             max_length=max_length,
@@ -77,7 +106,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         )
         encoded = {key: value.to(device) for key, value in encoded.items()}
         outputs = self.encoder(**encoded)
-        pooled = self.mean_pool(outputs.last_hidden_state, encoded["attention_mask"])
+        pooled = self.pool_hidden(outputs.last_hidden_state, encoded["attention_mask"])
         return F.normalize(pooled, p=2, dim=-1)
 
     def _memory_tokens_from_query_hidden(
@@ -105,6 +134,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         max_length: int,
         batch_size: int,
         device: Optional[Union[torch.device, str]] = None,
+        text_prefix: str = "",
     ) -> torch.Tensor:
         device = self._device(device)
         if not texts:
@@ -112,7 +142,14 @@ class LoopMatryoshkaRetriever(nn.Module):
 
         outputs: List[torch.Tensor] = []
         for start in range(0, len(texts), int(batch_size)):
-            outputs.append(self._encode_texts_once(texts[start : start + int(batch_size)], max_length, device))
+            outputs.append(
+                self._encode_texts_once(
+                    texts[start : start + int(batch_size)],
+                    max_length,
+                    device,
+                    text_prefix=text_prefix,
+                )
+            )
         return torch.cat(outputs, dim=0)
 
     def _encode_query_loop_chunk(
@@ -122,7 +159,7 @@ class LoopMatryoshkaRetriever(nn.Module):
         loop_limit: int,
     ) -> List[torch.Tensor]:
         encoded = self.tokenizer(
-            texts,
+            self._with_prefix(texts, self.query_prefix),
             padding=True,
             truncation=True,
             max_length=self.max_query_length,
@@ -145,8 +182,9 @@ class LoopMatryoshkaRetriever(nn.Module):
             outputs = self.encoder(inputs_embeds=inputs_embeds, attention_mask=current_attention_mask)
             memory_token_count = inputs_embeds.size(1) - query_token_length
             query_hidden = outputs.last_hidden_state[:, memory_token_count:, :]
-            pooled = self.mean_pool(query_hidden, attention_mask)
-            ht = F.normalize(pooled, p=2, dim=-1)
+            memory_pooled = self.mean_pool(query_hidden, attention_mask)
+            embedding_pooled = self.pool_hidden(query_hidden, attention_mask)
+            ht = F.normalize(embedding_pooled, p=2, dim=-1)
             states.append(ht)
 
             last_memory_tokens = int(memory_token_count)
@@ -154,7 +192,7 @@ class LoopMatryoshkaRetriever(nn.Module):
             if t == loop_limit:
                 break
 
-            memory_tokens_tensor = self._memory_tokens_from_query_hidden(query_hidden, pooled)
+            memory_tokens_tensor = self._memory_tokens_from_query_hidden(query_hidden, memory_pooled)
             if self.loop_memory_mode == "token_concat":
                 memory_mask = attention_mask
             elif self.loop_memory_mode == "none":
@@ -179,12 +217,72 @@ class LoopMatryoshkaRetriever(nn.Module):
             "loop_impl": self.loop_impl,
             "loop_memory_mode": self.loop_memory_mode,
             "loop_query_mode": self.loop_query_mode,
+            "embedding_pooling_mode": self.embedding_pooling_mode,
             "query_token_length": int(query_token_length),
             "last_memory_tokens": int(last_memory_tokens),
             "last_input_length": int(last_input_length),
             "memory_tokens_included": bool(last_memory_tokens > 0),
             "pooling_excludes_memory_tokens": True,
         }
+        return states
+
+    def _encode_doc_loop_chunk(
+        self,
+        texts: List[str],
+        device: torch.device,
+        loop_limit: int,
+    ) -> List[torch.Tensor]:
+        encoded = self.tokenizer(
+            self._with_prefix(texts, self.doc_prefix),
+            padding=True,
+            truncation=True,
+            max_length=self.max_doc_length,
+            return_tensors="pt",
+        )
+        input_ids = encoded["input_ids"].to(device)
+        attention_mask = encoded["attention_mask"].to(device)
+
+        initial_doc_token_embeds = self.encoder.get_input_embeddings()(input_ids)
+        batch_size = input_ids.size(0)
+        doc_token_length = input_ids.size(1)
+
+        states: List[torch.Tensor] = []
+        inputs_embeds = initial_doc_token_embeds
+        current_attention_mask = attention_mask
+
+        for t in range(1, loop_limit + 1):
+            outputs = self.encoder(inputs_embeds=inputs_embeds, attention_mask=current_attention_mask)
+            memory_token_count = inputs_embeds.size(1) - doc_token_length
+            doc_hidden = outputs.last_hidden_state[:, memory_token_count:, :]
+            memory_pooled = self.mean_pool(doc_hidden, attention_mask)
+            embedding_pooled = self.pool_hidden(doc_hidden, attention_mask)
+            ht = F.normalize(embedding_pooled, p=2, dim=-1)
+            states.append(ht)
+
+            if t == loop_limit:
+                break
+
+            memory_tokens_tensor = self._memory_tokens_from_query_hidden(doc_hidden, memory_pooled)
+            if self.loop_memory_mode == "token_concat":
+                memory_mask = attention_mask
+            elif self.loop_memory_mode == "none":
+                memory_mask = attention_mask[:, :0]
+            else:
+                memory_mask = torch.ones(
+                    batch_size,
+                    memory_tokens_tensor.size(1),
+                    dtype=attention_mask.dtype,
+                    device=device,
+                )
+            if self.loop_query_mode == "initial_embedding":
+                next_doc_token_embeds = initial_doc_token_embeds
+            elif self.loop_query_mode == "recurrent_hidden":
+                next_doc_token_embeds = doc_hidden
+            else:
+                raise ValueError(f"Unknown loop_query_mode: {self.loop_query_mode}")
+            inputs_embeds = torch.cat([memory_tokens_tensor, next_doc_token_embeds], dim=1)
+            current_attention_mask = torch.cat([memory_mask, attention_mask], dim=1)
+
         return states
 
     def encode_query_loops(
@@ -216,7 +314,28 @@ class LoopMatryoshkaRetriever(nn.Module):
         batch_size: int = 32,
         device: Optional[Union[torch.device, str]] = None,
     ) -> torch.Tensor:
-        return self.encode_texts(texts, self.max_doc_length, batch_size, device)
+        return self.encode_texts(texts, self.max_doc_length, batch_size, device, text_prefix=self.doc_prefix)
+
+    def encode_docs_looped(
+        self,
+        texts: List[str],
+        batch_size: int = 32,
+        loop_idx: Optional[int] = None,
+        device: Optional[Union[torch.device, str]] = None,
+    ) -> torch.Tensor:
+        device = self._device(device)
+        if loop_idx is not None and not 1 <= int(loop_idx) <= self.tmax:
+            raise ValueError(f"loop_idx must be in [1, {self.tmax}], got {loop_idx}.")
+        target_loop = self.tmax if loop_idx is None else int(loop_idx)
+
+        chunk_outputs: List[torch.Tensor] = []
+        for start in range(0, len(texts), int(batch_size)):
+            states = self._encode_doc_loop_chunk(texts[start : start + int(batch_size)], device, target_loop)
+            chunk_outputs.append(states[target_loop - 1])
+
+        if not chunk_outputs:
+            return torch.empty(0, self.embedding_dim, device=device)
+        return torch.cat(chunk_outputs, dim=0)
 
     def encode_queries(
         self,
@@ -289,6 +408,9 @@ class LoopMatryoshkaRetriever(nn.Module):
             "detach_memory": self.detach_memory,
             "loop_memory_mode": self.loop_memory_mode,
             "loop_query_mode": self.loop_query_mode,
+            "embedding_pooling_mode": self.embedding_pooling_mode,
+            "query_prefix": self.query_prefix,
+            "doc_prefix": self.doc_prefix,
             "embedding_dim": self.embedding_dim,
         }
 
@@ -336,6 +458,9 @@ def load_model(
     config.pop("embedding_dim", None)
     config.setdefault("loop_memory_mode", "mean_pool")
     config.setdefault("loop_query_mode", "initial_embedding")
+    config.setdefault("embedding_pooling_mode", "mean_pool")
+    config.setdefault("query_prefix", "")
+    config.setdefault("doc_prefix", "")
     model = LoopMatryoshkaRetriever(**config)
     state = torch.load(state_path, map_location=map_location or "cpu")
     missing, unexpected = model.load_state_dict(state, strict=False)

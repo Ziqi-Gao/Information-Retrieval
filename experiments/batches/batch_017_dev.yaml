@@ -1,0 +1,100 @@
+batch_id: batch_017_dev
+description: "Dev-only standalone eval portfolio testing chunked document encoding and candidate-only lexical hashing."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 8
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r017_seeded_chunked_docs
+    claim_track: standalone_main
+    hypothesis: "Recurring FiQA2018/SCIDOCS weakness may come from document truncation or late-document evidence missed by a single leading document encoding."
+    mechanism: "Evaluate the weakly non-regressing seeded-sampling candidate with fixed chunked document aggregation, using candidate embeddings only."
+    expected_effect: "Tests whether length/truncation-aware document encoding lifts FiQA2018 or SCIDOCS without sacrificing SciFact."
+    version: standard_seeded_sampling
+    eval_only: true
+    candidate_rule: "Use the r016_standard_seeded_sampling checkpoint; evaluate loop_idx=1 globally with doc_chunk_words=180, doc_chunk_stride=120, doc_chunk_max_chunks=8, and no frozen-standard scoring input."
+    expected_failure_modes:
+      - "Chunk averaging may dilute head evidence and reduce SciFact or NFCorpus."
+      - "FiQA2018 and SCIDOCS may not be truncation-limited."
+      - "Longer document encoding may increase eval runtime without improving NDCG@10."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+      doc_chunk_words: 180
+      doc_chunk_stride: 120
+      doc_chunk_max_chunks: 8
+    risk:
+      level: medium
+      reason: "Evaluation-only candidate with a fixed global document aggregation rule; runtime may increase on long-corpus tasks."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r017_seeded_lexical_hash
+    claim_track: standalone_main
+    hypothesis: "Dense single-vector scoring may miss exact term and entity matches needed by FiQA2018, SciFact, and SCIDOCS."
+    mechanism: "Evaluate the weakly non-regressing seeded-sampling candidate with deterministic lexical hashing concatenated to dense candidate embeddings."
+    expected_effect: "Tests a candidate-only sparse+dense retrieval signal without baseline-model inputs or score interpolation."
+    version: standard_seeded_sampling
+    eval_only: true
+    candidate_rule: "Use the r016_standard_seeded_sampling checkpoint; evaluate loop_idx=1 globally with lexical_hash_dim=1024 and lexical_weight=0.15, using only candidate dense embeddings plus deterministic lexical hash features."
+    expected_failure_modes:
+      - "The fixed lexical weight may overemphasize term overlap and hurt semantic matching."
+      - "Hashed lexical features may not recover FiQA2018 or SCIDOCS if the bottleneck is training distribution rather than exact matching."
+      - "NFCorpus may be sensitive to lexical noise."
+    eval:
+      checkpoint_dir: outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+      lexical_hash_dim: 1024
+      lexical_weight: 0.15
+    risk:
+      level: medium
+      reason: "Evaluation-only candidate with deterministic candidate-internal lexical features; no frozen-standard input is used."
+    estimated_gpu_hours: 4
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

@@ -1,0 +1,101 @@
+batch_id: batch_014_dev
+description: "Dev-only standalone portfolio testing sparse loop supervision and label-smoothed listwise loss."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r014_sparse_late_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Supervising every loop may over-constrain the representation path; a sparse late-loop objective may reduce drift while preserving loop behavior."
+    mechanism: "Train first-token loop retrieval with loss only on loops 4, 7, and 10, then evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests supervision topology as a distinct mechanism from loop depth, memory mode, negative sampling, and small loss-weight changes."
+    version: loop_sparse_first_token
+    config: configs/goal_batch_014_sparse_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_sparse_first_token for one full epoch with loop_loss_indices=[4,7,10] and evaluate loop_idx=10 for every dev task using candidate-only scoring."
+    expected_failure_modes:
+      - "Sparse supervision may under-train early loop states and fail to improve final-loop retrieval."
+      - "Late-loop supervision may still regress FiQA2018 and SCIDOCS if loop drift is not the main problem."
+      - "The selected sparse loop set may not be optimal, but this candidate is not a loop-set sweep."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only candidate training supervision topology while preserving encoder-only training, candidate-only scoring, frozen baseline comparison, metric semantics, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r014_label_smooth_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Hard positive targets may overfit RLHN negative ordering; conservative label smoothing may improve transfer without changing candidate scoring."
+    mechanism: "Train first-token loop retrieval with label-smoothed listwise hard-negative loss, then evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests target calibration after hard CE, in-batch hybrid, and pairwise ranking objectives all failed to produce a viable global dev signal."
+    version: loop_label_smooth_first_token
+    config: configs/goal_batch_014_label_smooth_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_label_smooth_first_token for one full epoch with label_smoothing=0.05 and evaluate loop_idx=10 for every dev task using candidate-only scoring."
+    expected_failure_modes:
+      - "Label smoothing may underfit the positive passage and weaken all dev-task retrieval."
+      - "Target calibration may not address the FiQA2018 and SCIDOCS regressions."
+      - "A single smoothing value may not identify the best calibration strength, but this candidate is not a smoothing sweep."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only candidate loss calibration while preserving encoder-only training, candidate-only scoring, frozen baseline comparison, metric semantics, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

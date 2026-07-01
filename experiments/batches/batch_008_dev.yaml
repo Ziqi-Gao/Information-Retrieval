@@ -1,0 +1,164 @@
+batch_id: batch_008_dev
+description: "Dev-only standalone portfolio after local first-token loop-depth search exhaustion."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 24
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r008_final_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "First-token memory may need final-loop-only supervision rather than loopwise intermediate supervision to reduce dev-task drift."
+    mechanism: "Train the registered final-loop first-token memory retriever, then evaluate one predeclared loop depth globally on the dev tasks."
+    expected_effect: "Tests whether the first-token signal from batch_006 can be kept while reducing FiQA2018 and SCIDOCS regressions."
+    version: loop_final_first_token
+    eval_only: false
+    candidate_rule: "Train loop_final_first_token with configs/preexp.yaml for max_steps=1000 and evaluate loop_idx=10 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Final-only supervision may lose the SciFact and NFCorpus gains from loopwise first-token training."
+      - "First-token memory may still produce the same FiQA2018 and SCIDOCS regressions."
+    train:
+      epochs: 1
+      max_steps: 1000
+      save_steps: 500
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Uses existing final-loop loss and first-token memory behavior with one new registry entry; no metric, baseline, task set, or scoring-policy change."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r008_detached_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Detaching first-token memory across loop steps may reduce recurrent gradient instability while preserving useful memory content."
+    mechanism: "Train first-token loopwise retrieval with detached loop memory, then evaluate one predeclared loop depth globally on the dev tasks."
+    expected_effect: "Tests whether memory-gradient accumulation is responsible for the mixed SciFact/NFCorpus gains and FiQA2018/SCIDOCS regressions."
+    version: loop_matryoshka_first_token
+    config: configs/goal_batch_008_detached_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token with detach_memory=true for max_steps=1000 and evaluate loop_idx=10 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "Detaching memory may remove useful recurrence credit assignment and flatten the positive dev signal."
+      - "The memory content itself may be the source of the FiQA2018 and SCIDOCS regressions."
+    train:
+      epochs: 1
+      max_steps: 1000
+      save_steps: 500
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Config-only use of existing detach_memory support; no new scoring input or final-task tuning."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r008_short_first_token_t4
+    claim_track: standalone_main
+    hypothesis: "A shorter first-token training horizon may reduce over-iteration drift while keeping a global loop candidate rule."
+    mechanism: "Train first-token loopwise retrieval with tmax=4, then evaluate the final trained loop globally on the dev tasks."
+    expected_effect: "Tests whether the long-horizon first-token training setup caused the FiQA2018 and SCIDOCS regressions."
+    version: loop_matryoshka_first_token
+    config: configs/goal_batch_008_short_first_token_tmax4.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token with tmax=4 for max_steps=1000 and evaluate loop_idx=4 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "A shorter horizon may remove the loop refinement that helped SciFact and NFCorpus."
+      - "The first-token mechanism may still overfit the same task subset even at lower depth."
+    train:
+      epochs: 1
+      max_steps: 1000
+      save_steps: 500
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 4
+      candidate_loop_indices:
+        - 4
+    risk:
+      level: low
+      reason: "Config-only shorter-horizon training of an already registered standalone memory mode."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r008_single_loop_t1
+    claim_track: standalone_main
+    hypothesis: "A one-loop standalone control can separate recurrence-specific failure from the current training recipe."
+    mechanism: "Train the loopwise retriever with tmax=1 and evaluate loop 1 globally on the dev tasks."
+    expected_effect: "Tests whether the existing standalone training recipe can produce a non-recurrent candidate before adding more loop complexity."
+    version: loop_matryoshka
+    config: configs/goal_batch_008_single_loop_tmax1.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka with tmax=1 for max_steps=1000 and evaluate loop_idx=1 for every dev task; use no frozen-baseline checkpoint, baseline ensemble, baseline concatenation, or interpolation in candidate scoring."
+    expected_failure_modes:
+      - "The one-loop control may underperform because it lacks any iterative query refinement."
+      - "The training recipe itself may be insufficient to match the frozen baseline on dev tasks."
+    train:
+      epochs: 1
+      max_steps: 1000
+      save_steps: 500
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: low
+      reason: "Config-only standalone control with one global candidate rule and no recurrence beyond the first pass."
+    estimated_gpu_hours: 5
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

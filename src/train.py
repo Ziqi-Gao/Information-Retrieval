@@ -2,16 +2,26 @@ import argparse
 import math
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from transformers import get_linear_schedule_with_warmup
 
-from .data import RLHNRetrievalDataset, collate_fn
+from .data import RLHNRetrievalDataset, ReasonIRRetrievalDataset, collate_fn
 from .experiments import get_version_spec, version_names
-from .losses import final_loop_loss, loopwise_loss, standard_loss
+from .losses import (
+    dimensional_matryoshka_retrieval_loss,
+    final_loop_loss,
+    loopwise_label_smoothed_loss,
+    loopwise_consistency_loss,
+    loopwise_loss,
+    loopwise_pairwise_loss,
+    loopwise_sparse_loss,
+    loopwise_tail_weighted_loss,
+    standard_loss,
+)
 from .model import LoopMatryoshkaRetriever
 from .utils import (
     add_bool_arg,
@@ -28,6 +38,7 @@ from .utils import (
 DEFAULTS: Dict[str, Any] = {
     "model_name_or_path": "answerdotai/ModernBERT-base",
     "dataset_name": "rlhn/rlhn-680K",
+    "dataset_config": None,
     "version": "standard",
     "output_dir": "outputs/standard",
     "tmax": 10,
@@ -44,6 +55,14 @@ DEFAULTS: Dict[str, Any] = {
     "weight_decay": 0.01,
     "warmup_ratio": 0.05,
     "tau": 0.05,
+    "inbatch_weight": 1.0,
+    "pairwise_margin": 0.0,
+    "loop_loss_gamma": 1.25,
+    "loop_consistency_lambda": 0.05,
+    "label_smoothing": 0.05,
+    "loop_loss_indices": None,
+    "matryoshka_dims": None,
+    "two_stage_warmup_ratio": 0.25,
     "bf16": False,
     "fp16": False,
     "seed": 42,
@@ -54,6 +73,10 @@ DEFAULTS: Dict[str, Any] = {
     "use_inbatch": False,
     "loop_memory_mode": "mean_pool",
     "loop_query_mode": "initial_embedding",
+    "embedding_pooling_mode": "mean_pool",
+    "passage_sampling_strategy": "first",
+    "query_prefix": "",
+    "doc_prefix": "",
 }
 
 
@@ -62,6 +85,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None, help="YAML config path. CLI overrides take precedence.")
     parser.add_argument("--model_name_or_path", default=None)
     parser.add_argument("--dataset_name", default=None)
+    parser.add_argument("--dataset_config", default=None)
     parser.add_argument("--version", choices=version_names(), default=None)
     parser.add_argument("--output_dir", default=None)
     parser.add_argument("--tmax", type=int, default=None)
@@ -78,9 +102,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--warmup_ratio", type=float, default=None)
     parser.add_argument("--tau", type=float, default=None)
+    parser.add_argument("--inbatch_weight", type=float, default=None)
+    parser.add_argument("--pairwise_margin", type=float, default=None)
+    parser.add_argument("--loop_loss_gamma", type=float, default=None)
+    parser.add_argument("--loop_consistency_lambda", type=float, default=None)
+    parser.add_argument("--label_smoothing", type=float, default=None)
+    parser.add_argument("--loop_loss_indices", default=None)
+    parser.add_argument("--matryoshka_dims", default=None)
+    parser.add_argument("--two_stage_warmup_ratio", type=float, default=None)
     add_bool_arg(parser, "bf16", "Use bfloat16 autocast on CUDA.")
     add_bool_arg(parser, "fp16", "Use float16 autocast on CUDA.")
-    add_bool_arg(parser, "use_inbatch", "Compatibility flag; training objective is hard-negative only.")
+    add_bool_arg(parser, "use_inbatch", "Enable in-batch loss for versions that explicitly support it.")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--log_steps", type=int, default=None)
     parser.add_argument("--save_steps", type=int, default=None)
@@ -88,6 +120,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataloader_num_workers", type=int, default=None)
     parser.add_argument("--loop_memory_mode", choices=["first_token", "mean_pool", "none", "token_concat"], default=None)
     parser.add_argument("--loop_query_mode", choices=["initial_embedding", "recurrent_hidden"], default=None)
+    parser.add_argument("--embedding_pooling_mode", choices=["mean_pool", "first_token"], default=None)
+    parser.add_argument("--passage_sampling_strategy", choices=["first", "middle_negatives", "seeded_random"], default=None)
+    parser.add_argument("--query_prefix", default=None)
+    parser.add_argument("--doc_prefix", default=None)
     return parser
 
 
@@ -111,12 +147,69 @@ def parse_args() -> argparse.Namespace:
                 f"overriding requested value {args.loop_query_mode}."
             )
         args.loop_query_mode = version_spec.loop_query_mode
+    if version_spec.embedding_pooling_mode is not None:
+        if args.embedding_pooling_mode != version_spec.embedding_pooling_mode:
+            print(
+                f"Version {args.version} uses embedding_pooling_mode={version_spec.embedding_pooling_mode}; "
+                f"overriding requested value {args.embedding_pooling_mode}."
+            )
+        args.embedding_pooling_mode = version_spec.embedding_pooling_mode
+    if version_spec.passage_sampling_strategy is not None:
+        if args.passage_sampling_strategy != version_spec.passage_sampling_strategy:
+            print(
+                f"Version {args.version} uses passage_sampling_strategy={version_spec.passage_sampling_strategy}; "
+                f"overriding requested value {args.passage_sampling_strategy}."
+            )
+        args.passage_sampling_strategy = version_spec.passage_sampling_strategy
     if args.bf16 and args.fp16:
         raise ValueError("Choose only one mixed precision mode: bf16 or fp16.")
-    if args.use_inbatch:
-        print("use_inbatch=True was requested, but this experiment uses hard-negative loss only. Forcing use_inbatch=False.")
+    if args.two_stage_warmup_ratio < 0.0 or args.two_stage_warmup_ratio >= 1.0:
+        raise ValueError("two_stage_warmup_ratio must be in [0, 1).")
+    if args.label_smoothing < 0.0 or args.label_smoothing >= 1.0:
+        raise ValueError("label_smoothing must be in [0, 1).")
+    loss_type = version_spec.loss_type
+    if loss_type in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
+        if not args.use_inbatch:
+            print(f"Version uses {loss_type}; forcing use_inbatch=True.")
+        args.use_inbatch = True
+    elif args.use_inbatch:
+        print("use_inbatch=True was requested, but this version uses hard-negative loss only. Forcing use_inbatch=False.")
         args.use_inbatch = False
     return args
+
+
+def parse_loop_loss_indices(value: Any, tmax: int) -> list[int]:
+    if value is None:
+        return list(range(1, int(tmax) + 1))
+    raw_items = value
+    if isinstance(value, str):
+        raw_items = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+    elif not isinstance(value, (list, tuple)):
+        raw_items = [value]
+
+    indices = sorted({int(item) for item in raw_items})
+    if not indices:
+        raise ValueError("loop_loss_indices must contain at least one loop index.")
+    if indices[0] < 1 or indices[-1] > int(tmax):
+        raise ValueError(f"loop_loss_indices must be in [1, {int(tmax)}], got {indices}.")
+    return indices
+
+
+def parse_matryoshka_dims(value: Any, embedding_dim: int) -> list[int]:
+    if value is None:
+        return [int(embedding_dim)]
+    raw_items = value
+    if isinstance(value, str):
+        raw_items = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+    elif not isinstance(value, (list, tuple)):
+        raw_items = [value]
+
+    dims = sorted({int(item) for item in raw_items}, reverse=True)
+    if not dims:
+        raise ValueError("matryoshka_dims must contain at least one embedding dimension.")
+    if dims[0] > int(embedding_dim) or dims[-1] < 1:
+        raise ValueError(f"matryoshka_dims must be in [1, {int(embedding_dim)}], got {dims}.")
+    return dims
 
 
 def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) -> torch.optim.Optimizer:
@@ -125,6 +218,27 @@ def build_optimizer(model: LoopMatryoshkaRetriever, args: argparse.Namespace) ->
             {"params": model.encoder.parameters(), "lr": args.learning_rate_encoder, "name": "encoder"},
         ],
         weight_decay=args.weight_decay,
+    )
+
+
+def build_training_dataset(args: argparse.Namespace) -> torch.utils.data.Dataset:
+    if args.dataset_name == "reasonir/reasonir-data":
+        return ReasonIRRetrievalDataset(
+            dataset_name=args.dataset_name,
+            dataset_config=args.dataset_config or "hq",
+            train_sample_size=args.train_sample_size,
+            num_negatives=args.num_negatives,
+            seed=args.seed,
+        )
+
+    if args.dataset_config:
+        raise ValueError(f"dataset_config is only supported for reasonir/reasonir-data, got {args.dataset_name!r}.")
+    return RLHNRetrievalDataset(
+        dataset_name=args.dataset_name,
+        train_sample_size=args.train_sample_size,
+        num_negatives=args.num_negatives,
+        seed=args.seed,
+        passage_sampling_strategy=args.passage_sampling_strategy,
     )
 
 
@@ -149,10 +263,88 @@ def select_loss(
     loss_type = get_version_spec(version).loss_type
     if loss_type == "standard":
         return standard_loss(q_loops[0], pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "standard_inbatch_hybrid":
+        return standard_loss(
+            q_loops[0],
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=True,
+            inbatch_weight=args.inbatch_weight,
+        )
+    if loss_type == "standard_dim_mrl":
+        return dimensional_matryoshka_retrieval_loss(
+            q_loops[0],
+            pos_emb,
+            neg_emb,
+            dims=parse_matryoshka_dims(args.matryoshka_dims, q_loops[0].size(-1)),
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+        )
     if loss_type == "final_loop":
         return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "final_loop_qdoc":
+        return final_loop_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=False)
     if loss_type == "loopwise":
         return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "loopwise_label_smoothed":
+        return loopwise_label_smoothed_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            label_smoothing=args.label_smoothing,
+        )
+    if loss_type == "loopwise_sparse":
+        return loopwise_sparse_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            loop_indices=parse_loop_loss_indices(args.loop_loss_indices, args.tmax),
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+        )
+    if loss_type == "two_stage_loopwise":
+        return loopwise_loss(q_loops, pos_emb, neg_emb, tau=args.tau, use_inbatch=args.use_inbatch)
+    if loss_type == "loopwise_inbatch_hybrid":
+        return loopwise_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=True,
+            inbatch_weight=args.inbatch_weight,
+        )
+    if loss_type == "loopwise_pairwise":
+        return loopwise_pairwise_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            margin=args.pairwise_margin,
+        )
+    if loss_type == "loopwise_tail_weighted":
+        return loopwise_tail_weighted_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+            gamma=args.loop_loss_gamma,
+        )
+    if loss_type == "loopwise_consistency":
+        return loopwise_consistency_loss(
+            q_loops,
+            pos_emb,
+            neg_emb,
+            tau=args.tau,
+            use_inbatch=args.use_inbatch,
+            inbatch_weight=args.inbatch_weight,
+            consistency_lambda=args.loop_consistency_lambda,
+        )
     raise ValueError(f"Unknown loss_type {loss_type!r} for version: {version}")
 
 
@@ -161,8 +353,18 @@ def encode_training_batch(
     batch: Dict[str, Any],
     version: str,
 ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+    if get_version_spec(version).loss_type == "final_loop_qdoc":
+        return encode_looped_doc_training_batch(model, batch)
     if not get_version_spec(version).is_standard_family:
         return model.forward_batch(batch["queries"], batch["positives"], batch["negatives"])
+
+    return encode_standard_training_batch(model, batch)
+
+
+def encode_standard_training_batch(
+    model: LoopMatryoshkaRetriever,
+    batch: Dict[str, Any],
+) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
 
     queries = batch["queries"]
     positives = batch["positives"]
@@ -182,6 +384,44 @@ def encode_training_batch(
     return [q_emb], pos_emb, neg_emb.view(batch_size, num_negatives, -1)
 
 
+def encode_looped_doc_training_batch(
+    model: LoopMatryoshkaRetriever,
+    batch: Dict[str, Any],
+) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
+    queries = batch["queries"]
+    positives = batch["positives"]
+    negatives = batch["negatives"]
+    if len(queries) != len(positives) or len(queries) != len(negatives):
+        raise ValueError("queries, positives, and negatives must have the same batch size.")
+    batch_size = len(queries)
+    num_negatives = len(negatives[0])
+    if any(len(row) != num_negatives for row in negatives):
+        raise ValueError("Every sample must have the same number of negatives.")
+
+    device = model._device()
+    q_stack = model.encode_queries(
+        queries,
+        batch_size=batch_size,
+        return_all_loops=True,
+        device=device,
+    )
+    q_loops = list(q_stack.unbind(dim=0))
+    pos_emb = model.encode_docs_looped(
+        positives,
+        batch_size=batch_size,
+        loop_idx=model.tmax,
+        device=device,
+    )
+    flat_negatives = [text for row in negatives for text in row]
+    neg_emb = model.encode_docs_looped(
+        flat_negatives,
+        batch_size=batch_size,
+        loop_idx=model.tmax,
+        device=device,
+    )
+    return q_loops, pos_emb, neg_emb.view(batch_size, num_negatives, -1)
+
+
 def run_sanity_checks(
     model: LoopMatryoshkaRetriever,
     batch: Dict[str, Any],
@@ -190,10 +430,17 @@ def run_sanity_checks(
     neg_emb: torch.Tensor,
     loss_dict: Dict[str, torch.Tensor],
     args: argparse.Namespace,
+    loss_type_override: Optional[str] = None,
+    expected_loops_override: Optional[int] = None,
 ) -> None:
     batch_size = len(batch["queries"])
     num_negatives = len(batch["negatives"][0])
-    expected_loops = 1 if get_version_spec(args.version).is_standard_family else int(args.tmax)
+    loss_type = loss_type_override or get_version_spec(args.version).loss_type
+    expected_loops = (
+        int(expected_loops_override)
+        if expected_loops_override is not None
+        else 1 if get_version_spec(args.version).is_standard_family else int(args.tmax)
+    )
     if len(q_loops) != expected_loops:
         raise AssertionError(f"Expected {expected_loops} query loop tensors, got {len(q_loops)}.")
     for idx, q_emb in enumerate(q_loops, start=1):
@@ -206,16 +453,45 @@ def run_sanity_checks(
         raise AssertionError(f"neg_emb shape mismatch: got {tuple(neg_emb.shape)}.")
 
     loss_inbatch = loss_dict.get("loss_inbatch", loss_dict.get("loss_inbatch_avg"))
-    if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
-        raise AssertionError("In-batch loss must be logged as 0.0 and excluded from total loss.")
+    if loss_type not in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
+        if loss_inbatch is None or float(loss_inbatch.detach().cpu().item()) != 0.0:
+            raise AssertionError("In-batch loss must be logged as 0.0 and excluded from this loss.")
 
-    if get_version_spec(args.version).loss_type == "loopwise":
+    if loss_type == "standard_dim_mrl":
+        dims = parse_matryoshka_dims(args.matryoshka_dims, model.embedding_dim)
+        loop_loss_values = [loss_dict[f"loss_dim{dim}"] for dim in dims]
+        expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type == "standard_inbatch_hybrid":
+        loss_hard = loss_dict.get("loss_hard")
+        if loss_hard is None or loss_inbatch is None:
+            raise AssertionError("Standard in-batch hybrid loss must log hard and in-batch terms.")
+        expected_loss = loss_hard + float(args.inbatch_weight) * loss_inbatch
+    elif loss_type in {"loopwise", "loopwise_inbatch_hybrid", "loopwise_pairwise", "loopwise_label_smoothed"}:
         loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
         expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type == "loopwise_sparse":
+        loop_indices = parse_loop_loss_indices(args.loop_loss_indices, args.tmax)
+        loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in loop_indices]
+        expected_loss = torch.stack(loop_loss_values).mean()
+    elif loss_type == "loopwise_tail_weighted":
+        loop_loss_values = [loss_dict[f"loss_t{idx}"] for idx in range(1, int(args.tmax) + 1)]
+        weights = torch.tensor(
+            [float(args.loop_loss_gamma) ** idx for idx in range(len(loop_loss_values))],
+            dtype=loop_loss_values[0].dtype,
+            device=loop_loss_values[0].device,
+        )
+        weights = weights / weights.sum().clamp(min=1e-12)
+        expected_loss = (torch.stack(loop_loss_values) * weights).sum()
+    elif loss_type == "loopwise_consistency":
+        base_loss = loss_dict.get("loss_loopwise_base")
+        consistency_loss = loss_dict.get("loop_consistency_loss")
+        if base_loss is None or consistency_loss is None:
+            raise AssertionError("Consistency loss must log loopwise base and consistency terms.")
+        expected_loss = base_loss + float(args.loop_consistency_lambda) * consistency_loss
     else:
         expected_loss = loss_dict.get("loss_hard", loss_dict.get("final_loop_loss"))
     if expected_loss is None or not torch.allclose(loss_dict["loss"].detach(), expected_loss.detach(), rtol=1e-4, atol=1e-5):
-        raise AssertionError("Total loss must equal hard-negative loss only.")
+        raise AssertionError("Total loss must equal the configured retrieval objective.")
 
     debug = model.last_query_loop_debug
     print("Sanity checks:")
@@ -231,12 +507,13 @@ def run_sanity_checks(
         f"included={debug.get('memory_tokens_included', False)} "
         f"loop_memory_mode={debug.get('loop_memory_mode', 'mean_pool')} "
         f"loop_query_mode={debug.get('loop_query_mode', 'initial_embedding')} "
+        f"embedding_pooling_mode={debug.get('embedding_pooling_mode', 'mean_pool')} "
         f"query_len={debug.get('query_token_length')} "
         f"last_memory_tokens={debug.get('last_memory_tokens')} "
         f"last_input_len={debug.get('last_input_length')}"
     )
     print(f"  query_pooling_excludes_memory_tokens={debug.get('pooling_excludes_memory_tokens', True)}")
-    print("  loss_check=hard_negative_only")
+    print(f"  loss_check={loss_type}")
 
 
 def log_row(
@@ -259,12 +536,53 @@ def log_row(
     if torch.cuda.is_available():
         row["gpu_memory_allocated_gb"] = torch.cuda.memory_allocated() / 1e9
     loss_type = get_version_spec(args.version).loss_type
-    if loss_type == "loopwise":
-        for idx in range(1, args.tmax + 1):
-            key = f"loss_t{idx}"
-            if key in loss_dict:
-                row[key] = tensor_to_float(loss_dict[key])
-    if loss_type == "final_loop" and "final_loop_loss" in loss_dict:
+    if "_training_stage" in loss_dict:
+        row["training_stage"] = str(loss_dict["_training_stage"])
+    if loss_type in {
+        "standard_dim_mrl",
+        "standard_inbatch_hybrid",
+        "loopwise",
+        "two_stage_loopwise",
+        "loopwise_inbatch_hybrid",
+        "loopwise_pairwise",
+        "loopwise_label_smoothed",
+        "loopwise_sparse",
+        "loopwise_tail_weighted",
+        "loopwise_consistency",
+        "final_loop_qdoc",
+    }:
+        if loss_type == "standard_dim_mrl":
+            dims = [int(dim) for dim in loss_dict["matryoshka_dims"].detach().cpu().tolist()]
+            row["matryoshka_dims"] = ",".join(str(dim) for dim in dims)
+            for dim in dims:
+                key = f"loss_dim{dim}"
+                if key in loss_dict:
+                    row[key] = tensor_to_float(loss_dict[key])
+        elif loss_type in {"standard_inbatch_hybrid", "final_loop_qdoc"}:
+            pass
+        else:
+            for idx in range(1, args.tmax + 1):
+                key = f"loss_t{idx}"
+                if key in loss_dict:
+                    row[key] = tensor_to_float(loss_dict[key])
+    if loss_type in {"loopwise_inbatch_hybrid", "standard_inbatch_hybrid"}:
+        row["inbatch_weight"] = float(args.inbatch_weight)
+    if loss_type == "loopwise_label_smoothed":
+        row["label_smoothing"] = float(args.label_smoothing)
+    if loss_type == "loopwise_sparse":
+        row["loop_loss_indices"] = ",".join(str(idx) for idx in parse_loop_loss_indices(args.loop_loss_indices, args.tmax))
+    if loss_type == "loopwise_pairwise":
+        row["pairwise_margin"] = float(args.pairwise_margin)
+        if "loss_pairwise_avg" in loss_dict:
+            row["loss_pairwise"] = tensor_to_float(loss_dict["loss_pairwise_avg"])
+    if loss_type == "loopwise_tail_weighted" and "loop_loss_gamma" in loss_dict:
+        row["loop_loss_gamma"] = tensor_to_float(loss_dict["loop_loss_gamma"])
+    if loss_type == "loopwise_consistency":
+        if "loss_loopwise_base" in loss_dict:
+            row["loss_loopwise_base"] = tensor_to_float(loss_dict["loss_loopwise_base"])
+        if "loop_consistency_loss" in loss_dict:
+            row["loop_consistency_loss"] = tensor_to_float(loss_dict["loop_consistency_loss"])
+    if loss_type in {"final_loop", "final_loop_qdoc"} and "final_loop_loss" in loss_dict:
         row["final_loop_loss"] = tensor_to_float(loss_dict["final_loop_loss"])
     return row
 
@@ -292,12 +610,7 @@ def main() -> None:
     autocast_dtype = torch.bfloat16 if args.bf16 else torch.float16
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda" and args.fp16))
 
-    dataset = RLHNRetrievalDataset(
-        dataset_name=args.dataset_name,
-        train_sample_size=args.train_sample_size,
-        num_negatives=args.num_negatives,
-        seed=args.seed,
-    )
+    dataset = build_training_dataset(args)
     dataloader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -316,6 +629,9 @@ def main() -> None:
         detach_memory=args.detach_memory,
         loop_memory_mode=args.loop_memory_mode,
         loop_query_mode=args.loop_query_mode,
+        embedding_pooling_mode=args.embedding_pooling_mode,
+        query_prefix=args.query_prefix,
+        doc_prefix=args.doc_prefix,
     ).to(device)
     assert_encoder_only_trainable(model)
 
@@ -324,6 +640,10 @@ def main() -> None:
     total_steps = int(args.epochs) * updates_per_epoch
     if args.max_steps is not None:
         total_steps = min(total_steps, int(args.max_steps))
+    loss_type = get_version_spec(args.version).loss_type
+    two_stage_warmup_steps = 0
+    if loss_type == "two_stage_loopwise":
+        two_stage_warmup_steps = min(total_steps - 1, int(total_steps * float(args.two_stage_warmup_ratio)))
     warmup_steps = int(total_steps * float(args.warmup_ratio))
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
@@ -336,13 +656,20 @@ def main() -> None:
         "Experiment config: "
         f"loop_impl={args.loop_impl}, use_inbatch={args.use_inbatch}, "
         f"tmax={args.tmax}, detach_memory={args.detach_memory}, "
-        f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}"
+        f"loop_memory_mode={args.loop_memory_mode}, loop_query_mode={args.loop_query_mode}, "
+        f"embedding_pooling_mode={args.embedding_pooling_mode}, "
+        f"passage_sampling_strategy={args.passage_sampling_strategy}, "
+        f"loop_loss_indices={parse_loop_loss_indices(args.loop_loss_indices, args.tmax)}, "
+        f"matryoshka_dims={parse_matryoshka_dims(args.matryoshka_dims, model.embedding_dim)}, "
+        f"query_prefix={args.query_prefix!r}, doc_prefix={args.doc_prefix!r}, "
+        f"label_smoothing={args.label_smoothing}, "
+        f"two_stage_warmup_steps={two_stage_warmup_steps}"
     )
     model.train()
     optimizer.zero_grad(set_to_none=True)
     global_step = 0
     should_stop = False
-    sanity_checked = False
+    sanity_checked_stages: set[str] = set()
 
     for epoch in range(int(args.epochs)):
         progress = tqdm(dataloader, desc=f"epoch {epoch + 1}/{args.epochs}", dynamic_ncols=True)
@@ -352,11 +679,33 @@ def main() -> None:
                 dtype=autocast_dtype,
                 enabled=autocast_enabled,
             ):
-                q_loops, pos_emb, neg_emb = encode_training_batch(model, batch, args.version)
-                loss_dict = select_loss(args.version, q_loops, pos_emb, neg_emb, args)
-                if not sanity_checked:
-                    run_sanity_checks(model, batch, q_loops, pos_emb, neg_emb, loss_dict, args)
-                    sanity_checked = True
+                in_two_stage_warmup = loss_type == "two_stage_loopwise" and global_step < two_stage_warmup_steps
+                if in_two_stage_warmup:
+                    q_loops, pos_emb, neg_emb = encode_standard_training_batch(model, batch)
+                    loss_dict = standard_loss(q_loops[0], pos_emb, neg_emb, tau=args.tau, use_inbatch=False)
+                    loss_dict["_training_stage"] = "standard_warmup"
+                    sanity_loss_type = "standard"
+                    sanity_expected_loops = 1
+                else:
+                    q_loops, pos_emb, neg_emb = encode_training_batch(model, batch, args.version)
+                    loss_dict = select_loss(args.version, q_loops, pos_emb, neg_emb, args)
+                    loss_dict["_training_stage"] = "loopwise" if loss_type == "two_stage_loopwise" else "main"
+                    sanity_loss_type = "loopwise" if loss_type == "two_stage_loopwise" else None
+                    sanity_expected_loops = int(args.tmax) if loss_type == "two_stage_loopwise" else None
+                stage_key = str(loss_dict.get("_training_stage", "main"))
+                if stage_key not in sanity_checked_stages:
+                    run_sanity_checks(
+                        model,
+                        batch,
+                        q_loops,
+                        pos_emb,
+                        neg_emb,
+                        loss_dict,
+                        args,
+                        loss_type_override=sanity_loss_type,
+                        expected_loops_override=sanity_expected_loops,
+                    )
+                    sanity_checked_stages.add(stage_key)
                 loss = loss_dict["loss"] / int(args.gradient_accumulation_steps)
 
             if scaler.is_enabled():

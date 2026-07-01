@@ -50,6 +50,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.stage in {"train", "all"} and not os.environ.get("SLURM_JOB_ID") and os.environ.get("ALLOW_LOGIN_NODE_TRAINING") != "1":
+        raise SystemExit(
+            "Refusing to run training directly on the login node. "
+            "Use scripts/goal_submit_batch.py for autonomous Slurm batches, "
+            "or set ALLOW_LOGIN_NODE_TRAINING=1 for a deliberate local smoke/debug run."
+        )
     config = load_yaml(args.config)
     task_names = split_task_names(config.get("task_names"), config.get("task_name", "SciFact"))
     output_base, eval_output_dir = infer_paths(args.config)

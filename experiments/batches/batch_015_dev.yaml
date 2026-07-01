@@ -1,0 +1,133 @@
+batch_id: batch_015_dev
+description: "Dev-only standalone portfolio pivoting to no-loop role prompting and dimensional Matryoshka supervision."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 3
+  max_gpu_hours_estimate: 21
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r015_role_prompt_standard
+    claim_track: standalone_main
+    hypothesis: "Role-specific query/document prefixes may reduce cross-domain representation ambiguity that repeatedly hurts FiQA2018 and SCIDOCS."
+    mechanism: "Train a no-loop single-vector candidate with global 'query: ' and 'passage: ' text prefixes, then evaluate the same prefix policy on every dev task."
+    expected_effect: "Tests input-format semantics as a broader standalone mechanism while preserving candidate-only scoring and the frozen baseline comparison."
+    version: standard_role_prompt
+    config: configs/goal_batch_015_role_prompt_standard.yaml
+    eval_only: false
+    candidate_rule: "Train standard_role_prompt for one full epoch with query/document role prefixes and evaluate loop_idx=1 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "ModernBERT may not benefit from literal role prefixes and could regress all dev tasks."
+      - "Role prefixes may help scientific tasks but fail to address FiQA2018 financial query/document mismatch."
+      - "A no-loop candidate may reduce drift but still not clear the frozen standard baseline."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: medium
+      reason: "Changes global candidate text formatting only; no frozen-standard scoring input, no metric changes, and only encoder parameters are trainable."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r015_dim_mrl_standard
+    claim_track: standalone_main
+    hypothesis: "Dimensional Matryoshka supervision may regularize single-vector embedding geometry and reduce FiQA2018/SCIDOCS transfer regressions without loop memory."
+    mechanism: "Train a no-loop candidate with hard-negative losses averaged over embedding prefixes 768, 384, and 192, then score all dev tasks with the full candidate embedding."
+    expected_effect: "Tests representation-geometry regularization rather than another first-token loop-memory loss or loop-depth tweak."
+    version: standard_dim_mrl
+    config: configs/goal_batch_015_dim_mrl_standard.yaml
+    eval_only: false
+    candidate_rule: "Train standard_dim_mrl for one full epoch with matryoshka_dims=[768,384,192] and evaluate loop_idx=1 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "Dimensional supervision may be too conservative and simply reproduce or trail the frozen standard baseline."
+      - "Prefix-dimension losses may over-regularize and hurt SciFact/NFCorpus while not fixing FiQA2018/SCIDOCS."
+      - "The full embedding may not benefit even if smaller prefixes are regularized."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: medium
+      reason: "Adds a parameter-free loss regularizer over existing encoder embeddings; no projection heads, frozen-standard inputs, metric changes, or final-task tuning."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r015_role_dim_mrl_standard
+    claim_track: standalone_main
+    hypothesis: "Combining role-aware input formatting with dimensional embedding regularization may address both query/document ambiguity and geometry drift."
+    mechanism: "Train a no-loop candidate with global query/document role prefixes and dimensional Matryoshka losses over embedding prefixes 768, 384, and 192."
+    expected_effect: "Tests whether two low-risk non-loop mechanisms interact constructively after first-token loop-memory local search was exhausted."
+    version: standard_role_prompt_dim_mrl
+    config: configs/goal_batch_015_role_dim_mrl_standard.yaml
+    eval_only: false
+    candidate_rule: "Train standard_role_prompt_dim_mrl for one full epoch with role prefixes and matryoshka_dims=[768,384,192], then evaluate loop_idx=1 globally on all dev tasks using only candidate embeddings."
+    expected_failure_modes:
+      - "The combination may make attribution harder if it produces split task behavior."
+      - "Role prefixes and dimensional regularization may both be too weak to recover FiQA2018 and SCIDOCS."
+      - "If both individual mechanisms fail, the combination may also regress all dev tasks."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 1
+      candidate_loop_indices:
+        - 1
+    risk:
+      level: medium
+      reason: "Combines two candidate-only, parameter-free changes while preserving encoder-only training, frozen baseline comparison, NDCG@10 semantics, thresholds, and dev-only scope."
+    estimated_gpu_hours: 7
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

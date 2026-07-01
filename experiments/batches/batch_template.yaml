@@ -1,0 +1,54 @@
+batch_id: batch_001
+description: "Harmless dry-run template for validating the autonomous experiment framework."
+created_by: codex
+purpose: smoke
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 4
+  max_gpu_hours_estimate: 24
+  allow_submit: false
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: true
+
+experiments:
+  - run_id: dryrun_standard_check
+    hypothesis: "Dry-run only; validates the submission framework."
+    version: standard
+    config: configs/smoke.yaml
+    run_name: dryrun_standard_check
+    loop_memory_mode: null
+    loop_query_mode: null
+    train:
+      epochs: 1
+      max_steps: 1
+      save_steps: 0
+    eval:
+      task_names:
+        - SciFact
+      eval_all_loops: false
+    risk:
+      level: low
+      reason: "Dry-run template, not intended for real submission."

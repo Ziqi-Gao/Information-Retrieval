@@ -74,11 +74,13 @@ flowchart TD
     StdLoss --> Eval
 ```
 
-Pooling excludes memory tokens. Documents are encoded once and do not loop:
+Pooling excludes memory tokens. By default, documents are encoded once and do not loop:
 
 ```text
 doc_embedding = normalize(mean_pool(ModernBERT(doc tokens)))
 ```
+
+Some autonomous dev manifests may explicitly test document-side loop symmetry as a predeclared candidate scoring rule. That path is opt-in through the goal-batch manifest and keeps the default training and evaluation behavior unchanged.
 
 The loop memory construction is parameter-free and selected by `loop_memory_mode`:
 
@@ -107,6 +109,9 @@ Experiment versions are registered in [src/experiments.py](src/experiments.py). 
 | `standard` | baseline | Single-pass no-loop retriever; only ModernBERT encoder parameters are trainable. |
 | `loop_final` | loop curve | Parameter-free memory loop retriever supervised only at the final loop. |
 | `loop_matryoshka` | loop curve | Parameter-free memory loop retriever supervised at every loop. |
+| `loop_matryoshka_first_token` | loop curve | First-token memory loop retriever supervised at every loop. |
+| `loop_final_first_token` | loop curve | First-token memory loop retriever supervised only at the final loop. |
+| `loop_matryoshka_token_concat` | loop curve | Token-concat memory loop retriever supervised at every loop. |
 | `loop_final_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised only at the final loop. |
 | `loop_matryoshka_recurrent_mean_pool` | loop curve | Mean-pool memory with recurrent query-token hidden states; supervised at every loop. |
 | `loop_final_recurrent_no_memory` | loop curve | No-memory recurrent query-token hidden states; supervised only at the final loop. |
@@ -129,6 +134,14 @@ outputs/                  checkpoints, MTEB results, plots, summaries
 .hf_cache/                Hugging Face datasets/models cache
 slurm_logs/               cluster stdout/stderr logs
 ```
+
+## Goal Acceptance Tracks
+
+The autonomous goal protocol separates score reports into `standalone_main`, `fusion_diagnostic`, and `diagnostic` tracks. Any run that uses frozen-standard embeddings, scores, weighted standard+candidate concatenation, `fusion_standard_checkpoint_dir`, `fusion_alpha`, `fusion_scope`, or another explicit ensemble with the frozen standard model is `fusion_diagnostic`.
+
+Fusion diagnostics may be evaluated and reported, but they cannot trigger main goal success. Main success requires a `standalone_main` final candidate with all seven protocol tasks valid, every `ndcg_at_10` delta at least `+0.002`, macro mean delta at least `+0.005`, and no task regression. The old `+0.001` all-task threshold is only `minimal_positive_signal`.
+
+Autonomous exploration must also avoid repeated local sweeps after standalone dev failures. When local loop-depth, nearby checkpoint-depth, memory-mode, or small hyperparameter searches are exhausted, future agents must enter `RESEARCH_DESIGN_MODE`, write a research plan, compare substantially different standalone directions, and design an efficient portfolio-style dev batch before any new submission.
 
 ## Installation
 

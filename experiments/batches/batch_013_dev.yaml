@@ -1,0 +1,101 @@
+batch_id: batch_013_dev
+description: "Dev-only standalone portfolio testing optimization warmup and deterministic negative-hardness window."
+created_by: codex
+purpose: dev
+primary_metric: ndcg_at_10
+win_margin: 0.001
+
+baseline:
+  summary_csv: outputs/baselines/standard_frozen/results_summary.csv
+  manifest_json: outputs/baselines/standard_frozen/baseline_manifest.json
+
+budget:
+  max_concurrent_gpu_jobs: 2
+  max_gpu_hours_estimate: 20
+  allow_submit: true
+
+tasks:
+  dev:
+    - SciFact
+    - NFCorpus
+    - FiQA2018
+    - SCIDOCS
+  final:
+    - SciFact
+    - NFCorpus
+    - SCIDOCS
+    - FiQA2018
+    - ArguAna
+    - Touche2020
+    - TRECCOVID
+
+defaults:
+  config: configs/preexp.yaml
+  output_base: outputs/goal/runs
+  eval_output_base: outputs/goal/eval
+  eval_all_loops: false
+
+experiments:
+  - run_id: r013_two_stage_warmup_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "Direct loopwise first-token optimization may destabilize broad retrieval geometry; a standard hard-negative warmup before loopwise training may preserve transfer while still learning loop behavior."
+    mechanism: "Train first-token retrieval with a deterministic two-stage objective: first 25% of optimizer steps use standard hard-negative training, then remaining steps use loopwise first-token training. Evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests whether optimization path, rather than loop depth, memory mode, data sampling, or loss family alone, drives the recurring FiQA2018 and SCIDOCS regressions."
+    version: loop_two_stage_first_token
+    config: configs/goal_batch_013_two_stage_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_two_stage_first_token for one full epoch with two_stage_warmup_ratio=0.25 and evaluate loop_idx=10 for every dev task using candidate-only scoring."
+    expected_failure_modes:
+      - "The warmup may preserve too much standard behavior and fail to create useful loop improvements."
+      - "Loopwise training after warmup may still reintroduce FiQA2018 and SCIDOCS regressions."
+      - "A fixed 25% warmup may not be the right transition point, but this candidate is not a warmup-ratio sweep."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only candidate training schedule while preserving encoder-only training, candidate-only scoring, frozen baseline comparison, metric semantics, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."
+
+  - run_id: r013_middle_negatives_first_token_t10
+    claim_track: standalone_main
+    hypothesis: "First-k RLHN negatives may be too hard or too ordering-biased; a deterministic middle negative window may reduce cross-domain regressions without using random sampling."
+    mechanism: "Train first-token loopwise retrieval with first positive plus a fixed middle window of negatives, then evaluate loop_idx=10 globally on all dev tasks."
+    expected_effect: "Tests negative-hardness pressure separately from batch_012 seeded random sampling and from prior lower-negative-count training."
+    version: loop_matryoshka_first_token_middle_negatives
+    config: configs/goal_batch_013_middle_negatives_first_token.yaml
+    eval_only: false
+    candidate_rule: "Train loop_matryoshka_first_token_middle_negatives for one full epoch using deterministic middle-window negatives and evaluate loop_idx=10 for every dev task using candidate-only scoring."
+    expected_failure_modes:
+      - "RLHN negative order may not correspond to hardness, so the middle window may not improve transfer."
+      - "Middle-window negatives may be too easy and weaken retrieval discrimination."
+      - "This data rule may repeat the split-positive/split-negative pattern from seeded sampling."
+    train:
+      epochs: 1
+      save_steps: 1000
+    eval:
+      task_names:
+        - SciFact
+        - NFCorpus
+        - FiQA2018
+        - SCIDOCS
+      eval_all_loops: false
+      loop_idx: 10
+      candidate_loop_indices:
+        - 10
+    risk:
+      level: medium
+      reason: "Changes only deterministic candidate training data selection; scoring remains candidate-only with unchanged metric, baseline, task set, and thresholds."
+    estimated_gpu_hours: 10
+    fallback: "Treat as standalone dev evidence only; do not make a final claim."

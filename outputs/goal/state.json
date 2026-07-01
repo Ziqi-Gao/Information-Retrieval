@@ -1,0 +1,307 @@
+{
+  "baseline": {
+    "manifest": "outputs/baselines/standard_frozen/baseline_manifest.json",
+    "path": "outputs/baselines/standard_frozen/results_summary.csv",
+    "sha256": "41984b40e07ef7160444172fcaf895bcf74b42e44de5c8a700c3ac942cdbdee5",
+    "status": "frozen"
+  },
+  "best_candidate": {
+    "batch_id": "batch_002_dev",
+    "candidate_id": "r002_query_loop_matryoshka_t3_a20__loop3",
+    "dev_tasks_valid": 4,
+    "dev_tasks_won": 4,
+    "mean_delta": 0.002450000000000001,
+    "metric": "ndcg_at_10",
+    "min_delta": 0.0015000000000000013,
+    "pass_all_tasks": false,
+    "reason": "Best dev-only candidate; ArguAna, Touche2020, and TRECCOVID were not evaluated in batch_002_dev.",
+    "run_id": "r002_query_loop_matryoshka_t3_a20",
+    "source_scoreboard": "outputs/goal/runs/batch_002_dev/scoreboard.json"
+  },
+  "budget": {
+    "max_concurrent_gpu_jobs": 4,
+    "max_gpu_hours_per_batch": 24.0
+  },
+  "current_batch": {
+    "batch_id": "batch_018_final_repair",
+    "dry_run": false,
+    "manifest": "experiments/batches/batch_018_final_repair.yaml",
+    "plan": "outputs/goal/runs/batch_018_final_repair/submission_plan.json",
+    "postprocess": true,
+    "postprocess_job_id": "5389900"
+  },
+  "final_tasks": [
+    "SciFact",
+    "NFCorpus",
+    "SCIDOCS",
+    "FiQA2018",
+    "ArguAna",
+    "Touche2020",
+    "TRECCOVID"
+  ],
+  "last_decision": {
+    "batch_id": "batch_018_final_repair",
+    "decided_at": "2026-06-28T23:59:01Z",
+    "decision": "batch_018_final_repair completed with all seven final tasks valid for standalone_main candidate r017_seeded_lexical_hash__loop1. It won 5/7 tasks and had mean delta +0.007187, but main_goal_success=false because Touche2020 and TRECCOVID regressed.",
+    "next_step": "Do not make a final success claim. Analyze Touche2020/TRECCOVID regressions before any further design.",
+    "source_scoreboard": "outputs/goal/runs/batch_018_final_repair/scoreboard.json"
+  },
+  "last_dev_result": {
+    "batch_id": "batch_017_dev_repair",
+    "best_candidate_id": "r017_seeded_lexical_hash__loop1",
+    "best_candidate_track": "standalone_main",
+    "best_mean_delta": 0.016252500000000003,
+    "best_min_delta": 0.006649999999999989,
+    "candidates": [
+      {
+        "candidate_id": "r017_seeded_lexical_hash__loop1",
+        "candidate_track": "standalone_main",
+        "candidate_values": {
+          "FiQA2018": 0.2652,
+          "NFCorpus": 0.24817,
+          "SCIDOCS": 0.15017,
+          "SciFact": 0.57454
+        },
+        "dev_deltas": {
+          "FiQA2018": 0.006649999999999989,
+          "NFCorpus": 0.009679999999999994,
+          "SCIDOCS": 0.01346,
+          "SciFact": 0.03522000000000003
+        },
+        "dev_tasks_lost": 0,
+        "dev_tasks_won": 4,
+        "fusion_diagnostic_pass": false,
+        "main_goal_success": false,
+        "mean_delta": 0.016252500000000003,
+        "min_delta": 0.006649999999999989,
+        "minimal_positive_signal": false,
+        "publishable_score_candidate": false,
+        "purpose": "dev",
+        "research_grade_threshold_pass": false,
+        "run_id": "r017_seeded_lexical_hash",
+        "status": "completed",
+        "tasks_at_main_margin": 4,
+        "tasks_lost": 3,
+        "tasks_valid": 4,
+        "tasks_won": 4
+      }
+    ],
+    "dev_tasks_valid": 4,
+    "evaluated_at": "2026-06-28T19:20:38Z",
+    "failure_pattern": "No repair failure. Candidate-only lexical hash cleared all four evaluated dev tasks with deltas above +0.002 and macro mean above +0.005. Scoreboard success flags remain false because the batch is dev-only and lacks ArguAna, Touche2020, and TRECCOVID by design.",
+    "fusion_diagnostic_pass": false,
+    "main_goal_success": false,
+    "mechanism_family_assessment": "Candidate-only dense+lexical hash now has a strong viable global dev signal. This does not change exhaustion status for first-token loop-memory, q/doc loop symmetry, role/MRL, or in-batch hybrid families.",
+    "minimal_positive_signal": false,
+    "postprocess_done": true,
+    "postprocess_failed": false,
+    "publishable_score_candidate": false,
+    "purpose": "dev",
+    "research_grade_threshold_pass": false,
+    "source_scoreboard": "outputs/goal/runs/batch_017_dev_repair/scoreboard.json",
+    "strong_viable_global_dev_signal": true
+  },
+  "last_final_validation": {
+    "batch_id": "batch_018_final_repair",
+    "candidate_id": "r017_seeded_lexical_hash__loop1",
+    "candidate_track": "standalone_main",
+    "evaluated_at": "2026-06-28T23:59:01Z",
+    "failure_reasons": "Touche2020 and TRECCOVID deltas are below diagnostic margin and below main +0.002 margin",
+    "final_deltas": {
+      "ArguAna": 0.008570000000000078,
+      "FiQA2018": 0.006649999999999989,
+      "NFCorpus": 0.009679999999999994,
+      "SCIDOCS": 0.01346,
+      "SciFact": 0.03522000000000003,
+      "TRECCOVID": -0.00931000000000004,
+      "Touche2020": -0.01396
+    },
+    "fusion_diagnostic_pass": false,
+    "main_goal_success": false,
+    "mean_delta": 0.007187142857142864,
+    "min_delta": -0.01396,
+    "minimal_positive_signal": false,
+    "regressions": [
+      "Touche2020",
+      "TRECCOVID"
+    ],
+    "research_grade_threshold_pass": false,
+    "scoreboard": "outputs/goal/runs/batch_018_final_repair/scoreboard.json",
+    "tasks_at_main_margin": 5,
+    "tasks_lost": 2,
+    "tasks_valid": 7,
+    "tasks_won": 5
+  },
+  "last_postprocess_check": {
+    "batch_id": "batch_018_final_repair",
+    "postprocess_done": true,
+    "postprocess_done_path": "outputs/goal/runs/batch_018_final_repair/postprocess_done.json",
+    "postprocess_failed": false,
+    "postprocess_failed_path": null,
+    "scoreboard_json": "outputs/goal/runs/batch_018_final_repair/scoreboard.json",
+    "status": "completed"
+  },
+  "last_scoreboard": "outputs/goal/runs/batch_018_final_repair/scoreboard.json",
+  "last_status_attempt": {
+    "attempted_at": "2026-06-28T20:58:30Z",
+    "command": "source scripts/slurm_env.sh && \"$PYTHON_BIN\" scripts/goal_status.py --state outputs/goal/state.json --batch-id batch_018_final --update-state",
+    "result": "Local status refresh hung during Slurm querying and was killed; deterministic postprocess_done.json, collected_results.csv/json, scoreboard.csv/json, per_run_validation.json, submission_plan.json, Slurm logs, and sacct evidence were used instead."
+  },
+  "last_submission_attempts": {
+    "batch_id": "batch_018_final_repair",
+    "final_attempt": "submitted_via_goal_submit_batch_with_submit_postprocess",
+    "scheduler_args": "site scheduler options supplied via temporary environment only"
+  },
+  "last_validation": {
+    "batch_id": "batch_018_final_repair",
+    "code_risk_review": "docs/subagent_reports/code_risk_reviewer_round_013.md; no blockers or high-severity risks",
+    "compileall_src_scripts": "passed",
+    "diff_check": "passed",
+    "dry_run_submit_postprocess": "passed",
+    "experiment_planner": "docs/subagent_reports/experiment_planner_round_013.md",
+    "literature_scout": "docs/subagent_reports/literature_scout_round_013.md",
+    "loader_seam_test": "passed for mteb/arguana, mteb/fiqa, mteb/touche2020, and mteb/trec-covid",
+    "manifest_validation": "passed",
+    "preflight": "passed",
+    "repo_auditor": "docs/subagent_reports/repo_auditor_round_013.md",
+    "shell_syntax_scripts": "passed",
+    "subagent_gate": "passed",
+    "subagent_summary": "docs/subagent_reports/round_013_summary.md"
+  },
+  "last_watcher": {
+    "batch_id": "batch_002_dev",
+    "path": "outputs/goal/runs/batch_002_dev/watcher_status.json",
+    "updated_at": "2026-06-20T02:47:51Z"
+  },
+  "local_search": {
+    "decided_at": "2026-06-28T17:57:34Z",
+    "evidence_batches": [
+      "batch_004_dev",
+      "batch_005_dev",
+      "batch_006_dev",
+      "batch_007_dev",
+      "batch_008_dev",
+      "batch_009_dev",
+      "batch_009_dev_repair",
+      "batch_010_dev",
+      "batch_011_dev",
+      "batch_012_dev",
+      "batch_013_dev",
+      "batch_014_dev",
+      "batch_015_dev",
+      "batch_016_dev"
+    ],
+    "reason": "Recent standalone_main dev batches still fail to produce a viable global dev signal. Batch_016_dev showed only weak non-regressing seeded-sampling evidence, while q/doc loop symmetry and no-loop in-batch geometry failed. Further local sweeps over first-token loops, q/doc loop settings, seeded-sampling knobs, role/MRL variants, or in-batch weights are low-value.",
+    "status": "exhausted"
+  },
+  "next_batch_design": {
+    "allow_submit": true,
+    "batch_id": "batch_017_dev",
+    "candidate_tracks": [
+      "standalone_main"
+    ],
+    "candidates": [
+      {
+        "candidate_rule": "Eval-only r016_standard_seeded_sampling checkpoint with doc_chunk_words=180, doc_chunk_stride=120, doc_chunk_max_chunks=8, loop_idx=1 on all dev tasks.",
+        "candidate_track": "standalone_main",
+        "outside_exhausted_mechanism_families": true,
+        "research_direction": "length/truncation-aware document encoding",
+        "run_id": "r017_seeded_chunked_docs"
+      },
+      {
+        "candidate_rule": "Eval-only r016_standard_seeded_sampling checkpoint with lexical_hash_dim=1024, lexical_weight=0.15, loop_idx=1 on all dev tasks.",
+        "candidate_track": "standalone_main",
+        "outside_exhausted_mechanism_families": true,
+        "research_direction": "candidate-only dense+lexical hash hybrid",
+        "run_id": "r017_seeded_lexical_hash"
+      }
+    ],
+    "created_after_research_design_mode": true,
+    "estimated_gpu_hours": 8,
+    "forbidden_frozen_standard_scoring": false,
+    "manifest": "experiments/batches/batch_017_dev.yaml",
+    "max_concurrent_gpu_jobs": 2,
+    "purpose": "dev",
+    "uses_dev_tasks_only": true
+  },
+  "next_required_action": "No main goal success. Analyze Touche2020 and TRECCOVID regressions before designing another batch.",
+  "open_jobs": [
+    {
+      "batch_id": "batch_018_final_repair",
+      "job_id": "5389899",
+      "raw_state": "COMPLETED",
+      "run_id": "r017_seeded_lexical_hash",
+      "source": "sacct",
+      "status": "completed",
+      "type": "eval"
+    },
+    {
+      "batch_id": "batch_018_final_repair",
+      "job_id": "5389900",
+      "raw_state": "COMPLETED",
+      "run_id": "batch_018_final_repair",
+      "source": "postprocess_done+sacct",
+      "status": "completed",
+      "type": "postprocess"
+    }
+  ],
+  "phase": "DECIDE_NEXT",
+  "postprocess_job_id": "5389900",
+  "primary_metric": "ndcg_at_10",
+  "repair": {
+    "batch_id": "batch_018_final_repair",
+    "candidate_rule": "standard_seeded_sampling checkpoint outputs/goal/runs/batch_016_dev/r016_standard_seeded_sampling/final; loop_idx=1; lexical_hash_dim=1024; lexical_weight=0.15; all seven final tasks; candidate-only scoring",
+    "candidate_rule_preserved": true,
+    "eval_job_id": "5389899",
+    "failed_candidate": "r017_seeded_lexical_hash__loop1",
+    "main_goal_success": false,
+    "manifest": "experiments/batches/batch_018_final_repair.yaml",
+    "postprocess_job_id": "5389900",
+    "repair_of": "batch_018_final",
+    "root_cause": "MTEB/HF datasets attempted to resolve mteb/arguana remote corpus.jsonl despite local corpus/queries/default Arrow cache; eval failed before results_summary.csv was written.",
+    "scoreboard": "outputs/goal/runs/batch_018_final_repair/scoreboard.json",
+    "status": "completed",
+    "submission_plan": "outputs/goal/runs/batch_018_final_repair/submission_plan.json"
+  },
+  "repo": {
+    "branch": null,
+    "commit": null,
+    "dirty": false
+  },
+  "research_design_mode": {
+    "allowed_gpu_hours": 24.0,
+    "claim_track": "standalone_main",
+    "directions_considered": [
+      "length/truncation-aware document encoding",
+      "candidate-only dense+lexical hash hybrid",
+      "query/document text construction audit",
+      "embedding isotropy or uniformity regularization",
+      "audited multi-source retrieval data mixture",
+      "candidate-mined hard-negative refresh",
+      "standalone late interaction"
+    ],
+    "entered_at": "2026-06-28T17:57:34Z",
+    "estimated_gpu_hours": 8,
+    "max_concurrent_gpu_jobs": 2,
+    "plan": "docs/research_design_round_010.md",
+    "portfolio_candidates": [
+      "r017_seeded_chunked_docs",
+      "r017_seeded_lexical_hash"
+    ],
+    "purpose": "dev",
+    "selected_batch": "batch_017_dev",
+    "selected_manifest": "experiments/batches/batch_017_dev.yaml",
+    "triggered_by": "batch_016_dev",
+    "workflow_gate": "real repo_auditor, literature_scout, experiment_planner, and result_analyst subagents completed; reports saved under docs/subagent_reports/round_010*.md; final-validation was rejected as unjustified; stale state was resolved factually"
+  },
+  "submitted_batches": [
+    "batch_012_dev",
+    "batch_013_dev",
+    "batch_014_dev",
+    "batch_015_dev",
+    "batch_016_dev",
+    "batch_017_dev",
+    "batch_017_dev_repair"
+  ],
+  "win_margin": 0.001
+}
